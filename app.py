@@ -127,11 +127,10 @@ with tab1:
             st.success(f"同步成功，{name}！去【📊 实时大盘】看看哪个时段最缺人。")
             st.rerun()
 
-    with st.expander("小提示（手机端更好用）", expanded=False):
+    with st.expander("小提示", expanded=False):
         st.markdown(
             "- **想改时间**：用同一个名字再次提交会自动覆盖。\n"
-            "- **想快速查人**：去【📊 实时大盘】→【🔍 查岗】选时间段。\n"
-            "- **数据按天分开**：每天会生成一个新的 `attendance_YYYY-MM-DD.csv`。"
+            "- **想快速查人**：去【📊 实时大盘】→【🔍 查岗】选时间段。"
         )
 
 # --- Tab 2: 数据展示面板 ---
