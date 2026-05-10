@@ -117,6 +117,19 @@ def get_media_type(file_name: str) -> str:
     return "image/jpeg"
 
 
+def _extract_json(text: str) -> str:
+    """Strip markdown fences and surrounding noise from model output."""
+    text = text.strip()
+    # Remove leading ```json or ``` fences
+    while text.startswith("```"):
+        newline_idx = text.find("\n")
+        text = text[newline_idx + 1:] if newline_idx != -1 else text[3:]
+    # Remove trailing ``` fences
+    if text.endswith("```"):
+        text = text[:-3]
+    return text.strip()
+
+
 def recognize_match_image(uploaded_file, match_date: str) -> tuple[list[dict], str]:
     try:
         image_bytes = uploaded_file.getvalue()
@@ -144,7 +157,7 @@ def recognize_match_image(uploaded_file, match_date: str) -> tuple[list[dict], s
         raise RuntimeError(f"识别失败：{uploaded_file.name} - {exc}") from exc
 
     try:
-        parsed_result = json.loads(response_text)
+        parsed_result = json.loads(_extract_json(response_text))
     except json.JSONDecodeError as exc:
         raise ValueError(f"json 解析失败：{uploaded_file.name} - {exc}\n原始输出：{response_text}") from exc
 
