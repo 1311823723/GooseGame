@@ -316,6 +316,20 @@ else:
         unsafe_allow_html=True,
     )
 
+    # Screenshot preview
+    match_ids_for_images = sorted(stored_records["match_id"].unique())
+    preview_id = st.selectbox(
+        "选择对局查看原图",
+        ["—"] + match_ids_for_images,
+        label_visibility="collapsed",
+    )
+    if preview_id != "—":
+        img = fetch_match_image(preview_id)
+        if img:
+            st.image(img, caption=f"{preview_id}", use_container_width=True)
+        else:
+            st.caption("该对局暂无截图")
+
     edited_df = st.data_editor(
         stored_records,
         use_container_width=True,
