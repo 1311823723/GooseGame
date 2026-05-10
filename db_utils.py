@@ -3,6 +3,7 @@ import json
 import os
 import sqlite3
 import urllib.request
+from difflib import get_close_matches
 from pathlib import Path
 
 import pandas as pd
@@ -152,9 +153,18 @@ def apply_role_mapping(records: list[dict]) -> list[dict]:
     role_alias = mapping.get("role_alias", {})
     name_rules = mapping.get("name_rules", {})
     name_contains = name_rules.get("contains", {})
+    valid_roles = list(faction_map.keys())
+
     for record in records:
         role = str(record.get("role", "")).strip()
+        # Step 1: direct alias
         canonical = role_alias.get(role, role)
+        # Step 2: check if canonical is in faction_map
+        if canonical not in faction_map:
+            # Step 3: fuzzy match against valid roles
+            matches = get_close_matches(canonical, valid_roles, n=1, cutoff=0.5)
+            if matches:
+                canonical = matches[0]
         record["role"] = canonical
         correct_faction = faction_map.get(canonical)
         if correct_faction:
