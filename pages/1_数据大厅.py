@@ -149,8 +149,8 @@ player_role_summary = (
 )
 if not player_role_summary.empty:
     player_role_summary["胜率"] = (
-        player_role_summary["胜场"] / player_role_summary["出场"]
-    ).round(4)
+        player_role_summary["胜场"] / player_role_summary["出场"] * 100
+    ).round(1)
     player_role_summary = player_role_summary.sort_values(
         by=["胜率", "出场"], ascending=[False, False]
     )
