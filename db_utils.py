@@ -311,9 +311,10 @@ def insert_match_images(images: dict[str, bytes]) -> tuple[bool, str]:
     try:
         with get_conn() as conn:
             for match_id, image_bytes in images.items():
+                b64 = base64.b64encode(image_bytes).decode()
                 conn.execute(
                     "insert or replace into match_images (match_id, image) values (?, ?)",
-                    (match_id, image_bytes),
+                    (match_id, b64),
                 )
             conn.commit()
         return True, ""
@@ -327,21 +328,13 @@ def fetch_match_image(match_id: str) -> bytes | None:
         return None
     try:
         with get_conn() as conn:
-            url = os.environ.get("TURSO_DATABASE_URL", "")
-            if url:
-                cur = conn.execute(
-                    "select image from match_images where match_id = ?", (match_id,)
-                )
-                row = cur.fetchone()
-                if row and row[0]:
-                    return base64.b64decode(row[0])
-                return None
-            else:
-                cur = conn.execute(
-                    "select image from match_images where match_id = ?", (match_id,)
-                )
-                row = cur.fetchone()
-                return row[0] if row else None
+            cur = conn.execute(
+                "select image from match_images where match_id = ?", (match_id,)
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                return base64.b64decode(row[0])
+            return None
     except Exception:
         return None
 
