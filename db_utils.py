@@ -200,6 +200,33 @@ def fix_existing_records() -> list[str]:
             if cur.rowcount:
                 changes.append(f"name unified: contains '{fragment}' -> {canonical_name} ({cur.rowcount} rows)")
 
+        # Auto-fix winners: if any goose/duck wins in a match, all of that faction win
+        url = os.environ.get("TURSO_DATABASE_URL", "")
+        if url:
+            cur = conn.execute(
+                "select match_id, faction from match_records where is_win = 1 and faction in ('鹅', '鸭')"
+            )
+            rows = cur.fetchall()
+            winning_pairs = set((r[0], r[1]) for r in rows)
+            fixed = 0
+            for mid, faction in winning_pairs:
+                cur = conn.execute(
+                    "update match_records set is_win = 1 where match_id = ? and faction = ? and is_win = 0",
+                    (mid, faction),
+                )
+                fixed += cur.rowcount
+        else:
+            cur = conn.execute(
+                "update match_records set is_win = 1 "
+                "where (match_id, faction) in ("
+                "  select match_id, faction from match_records"
+                "  where is_win = 1 and faction in ('鹅', '鸭')"
+                ") and faction in ('鹅', '鸭') and is_win = 0"
+            )
+            fixed = cur.rowcount
+        if fixed:
+            changes.append(f"winner auto-fix: {fixed} rows corrected")
+
         conn.commit()
     return changes
 
@@ -234,12 +261,34 @@ def init_db() -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _auto_fix_winners(records: list[dict]) -> list[dict]:
+    """同一局同一阵营只要有一人获胜，该阵营全员标记为获胜（中立除外）。"""
+    by_match: dict[str, dict[str, bool]] = {}
+    for r in records:
+        mid = r["match_id"]
+        faction = r["faction"]
+        if mid not in by_match:
+            by_match[mid] = {}
+        if faction not in by_match[mid]:
+            by_match[mid][faction] = False
+        if r["is_win"]:
+            by_match[mid][faction] = True
+
+    for r in records:
+        faction = r["faction"]
+        if faction in ("鹅", "鸭"):
+            if by_match.get(r["match_id"], {}).get(faction, False):
+                r["is_win"] = True
+    return records
+
+
 def insert_match_records(records: list[dict]) -> tuple[bool, str]:
     ok, error_message = init_db()
     if not ok:
         return False, error_message
 
     records = apply_role_mapping(records)
+    records = _auto_fix_winners(records)
 
     try:
         with get_conn() as conn:
