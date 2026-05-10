@@ -41,7 +41,7 @@ apply_base_styles()
 render_page_card(
     pill_text="内部页面 · 战绩入库",
     title_text="战绩管理",
-    subtitle_text="上传结算截图，由 Gemini 2.0 Flash 识别玩家阵营与职业，确认后存入数据库。",
+    subtitle_text="上传结算截图，由 Gemini 1.5 Flash 识别玩家阵营与职业，确认后存入数据库。",
 )
 
 # API status indicator
@@ -52,7 +52,7 @@ st.markdown(
     f'<div class="gg-card" style="padding:10px 18px;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">'
     f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{status_color};"></span>'
     f'<span style="font-weight:600;font-size:0.9rem;">Gemini API：{status_text}</span>'
-    f'<span style="opacity:0.55;font-size:0.82rem;">gemini-2.0-flash</span>'
+    f'<span style="opacity:0.55;font-size:0.82rem;">gemini-1.5-flash</span>'
     f'</div>',
     unsafe_allow_html=True,
 )
@@ -106,7 +106,7 @@ def recognize_match_image(uploaded_file, match_date: str) -> tuple[list[dict], s
         image = Image.open(uploaded_file)
         match_id = f"{match_date}-{uuid4().hex[:12]}"
 
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content([vision_prompt, image])
         response_text = response.text.strip()
     except Exception as exc:
