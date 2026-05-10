@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from datetime import date
@@ -8,16 +9,16 @@ import streamlit as st
 from PIL import Image
 
 try:
-    from google import genai
-    from google.genai import types
-    genai_import_error = ""
+    from openai import OpenAI
+    openai_import_error = ""
 except ImportError as exc:
-    genai = None
-    types = None
-    genai_import_error = str(exc)
+    OpenAI = None
+    openai_import_error = str(exc)
 
 from db_utils import delete_match_records, fetch_match_records, fix_existing_records, insert_match_records
 from ui_utils import apply_base_styles, render_page_card, render_section_title
+
+DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
 vision_prompt = (
@@ -31,31 +32,31 @@ allowed_factions = ["鹅", "鸭", "中立"]
 
 
 def get_api_key() -> str:
-    return str(st.secrets.get("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", ""))).strip()
+    return str(st.secrets.get("DASHSCOPE_API_KEY", os.getenv("DASHSCOPE_API_KEY", ""))).strip()
 
 
-gemini_api_key = get_api_key()
-gemini_client = None
-if gemini_api_key and genai is not None:
-    gemini_client = genai.Client(api_key=gemini_api_key)
+dashscope_api_key = get_api_key()
+dashscope_client = None
+if dashscope_api_key and OpenAI is not None:
+    dashscope_client = OpenAI(api_key=dashscope_api_key, base_url=DASHSCOPE_BASE_URL)
 
 st.set_page_config(page_title="战绩管理", layout="centered")
 apply_base_styles()
 render_page_card(
     pill_text="内部页面 · 战绩入库",
     title_text="战绩管理",
-    subtitle_text="上传结算截图，由 Gemini 1.5 Flash 识别玩家阵营与职业，确认后存入数据库。",
+    subtitle_text="上传结算截图，由通义千问 VL 识别玩家阵营与职业，确认后存入数据库。",
 )
 
 # API status indicator
-api_ok = bool(gemini_api_key)
+api_ok = bool(dashscope_api_key)
 status_color = "#22C55E" if api_ok else "#F59E0B"
 status_text = "已配置" if api_ok else "未配置"
 st.markdown(
     f'<div class="gg-card" style="padding:10px 18px;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">'
     f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{status_color};"></span>'
-    f'<span style="font-weight:600;font-size:0.9rem;">Gemini API：{status_text}</span>'
-    f'<span style="opacity:0.55;font-size:0.82rem;">gemini-1.5-flash</span>'
+    f'<span style="font-weight:600;font-size:0.9rem;">DashScope API：{status_text}</span>'
+    f'<span style="opacity:0.55;font-size:0.82rem;">qwen-vl-plus-latest</span>'
     f'</div>',
     unsafe_allow_html=True,
 )
@@ -63,11 +64,11 @@ st.markdown(
 with st.expander("识别前准备", expanded=False):
     st.markdown("1. 安装依赖：`pip install -r requirements.txt`")
     st.markdown("2. 本地配置文件：`.streamlit/secrets.toml`")
-    st.markdown("3. 写入 `GEMINI_API_KEY = \"你的密钥\"`（[免费获取](https://aistudio.google.com/apikey)）")
+    st.markdown("3. 写入 `DASHSCOPE_API_KEY = \"你的密钥\"`（[阿里云 DashScope](https://dashscope.console.aliyun.com/apiKey)）")
     st.markdown("4. 修改后刷新本页面再开始识别")
 
-if genai is None:
-    st.warning(f"当前未安装 google-genai，截图识别暂时不可用：{genai_import_error}")
+if OpenAI is None:
+    st.warning(f"当前未安装 openai，截图识别暂时不可用：{openai_import_error}")
 
 if "pending_match_records" not in st.session_state:
     st.session_state["pending_match_records"] = pd.DataFrame(
@@ -104,16 +105,36 @@ def normalize_record(record: dict, match_id: str, match_date: str) -> dict:
     }
 
 
+def get_media_type(file_name: str) -> str:
+    lower_name = file_name.lower()
+    if lower_name.endswith(".png"):
+        return "image/png"
+    return "image/jpeg"
+
+
 def recognize_match_image(uploaded_file, match_date: str) -> tuple[list[dict], str]:
     try:
-        image = Image.open(uploaded_file)
+        image_bytes = uploaded_file.getvalue()
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+        media_type = get_media_type(uploaded_file.name)
         match_id = f"{match_date}-{uuid4().hex[:12]}"
 
-        response = gemini_client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=[vision_prompt, image],
+        response = dashscope_client.chat.completions.create(
+            model="qwen-vl-plus-latest",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{media_type};base64,{image_base64}"},
+                        },
+                        {"type": "text", "text": vision_prompt},
+                    ],
+                }
+            ],
         )
-        response_text = response.text.strip()
+        response_text = response.choices[0].message.content.strip()
     except Exception as exc:
         raise RuntimeError(f"识别失败：{uploaded_file.name} - {exc}") from exc
 
@@ -151,10 +172,10 @@ with st.container(border=True):
 if st.button("开始识别", type="primary", use_container_width=True):
     if not uploaded_files:
         st.error("请先上传至少一张截图。")
-    elif genai is None:
-        st.error("未安装 google-genai，请先执行 pip install -r requirements.txt。")
-    elif not gemini_client:
-        st.error("未检测到 GEMINI_API_KEY，请在 .streamlit/secrets.toml 中配置。")
+    elif OpenAI is None:
+        st.error("未安装 openai，请先执行 pip install -r requirements.txt。")
+    elif not dashscope_client:
+        st.error("未检测到 DASHSCOPE_API_KEY，请在 .streamlit/secrets.toml 中配置。")
     else:
         recognized_rows = []
         recognition_errors = []
