@@ -29,13 +29,23 @@ if stored_records.empty:
 
 stored_records["is_win"] = stored_records["is_win"].astype(bool)
 
+# Date filter
+dates = sorted(stored_records["date"].unique(), reverse=True)
+date_options = ["全部"] + dates
+selected_date = st.selectbox("筛选日期", date_options, label_visibility="collapsed")
+active_records = stored_records if selected_date == "全部" else stored_records[stored_records["date"] == selected_date].copy()
+
+if active_records.empty:
+    st.info(f"{selected_date} 没有战绩数据。")
+    st.stop()
+
 # ==========================================
 # 阵营胜率
 # ==========================================
 render_section_title("阵营胜率")
 
 match_faction = (
-    stored_records.groupby(["match_id", "faction"], as_index=False)
+    active_records.groupby(["match_id", "faction"], as_index=False)
     .agg(本局获胜=("is_win", "max"))
 )
 faction_summary = (
@@ -88,7 +98,7 @@ render_section_divider()
 render_section_title("职业胜率榜")
 
 role_summary = (
-    stored_records.groupby("role", as_index=False)
+    active_records.groupby("role", as_index=False)
     .agg(
         出场总次数=("role", "size"),
         胜场数=("is_win", "sum"),
@@ -124,10 +134,10 @@ render_section_divider()
 # ==========================================
 render_section_title("个人战绩查询")
 
-player_names = sorted(stored_records["player_name"].dropna().astype(str).unique().tolist())
+player_names = sorted(active_records["player_name"].dropna().astype(str).unique().tolist())
 selected_player = st.selectbox("选择玩家", player_names, label_visibility="collapsed")
 
-player_records = stored_records[stored_records["player_name"] == selected_player].copy()
+player_records = active_records[active_records["player_name"] == selected_player].copy()
 total_matches = int(len(player_records))
 win_rate = round(float(player_records["is_win"].mean()), 4) if not player_records.empty else 0.0
 
@@ -167,6 +177,27 @@ st.dataframe(
     },
 )
 
+# Faction-level stats
+player_faction = (
+    player_records.groupby("faction", as_index=False)
+    .agg(
+        出场=("faction", "size"),
+        胜场=("is_win", "sum"),
+    )
+)
+if not player_faction.empty:
+    player_faction["胜率"] = (player_faction["胜场"] / player_faction["出场"] * 100).round(1)
+    cols = st.columns(len(player_faction))
+    for i, (_, row) in enumerate(player_faction.iterrows()):
+        fc = FACTION_COLORS.get(row["faction"], FACTION_COLORS["中立"])
+        with cols[i]:
+            render_stat_card(
+                f"{row['faction']} — {int(row['出场'])}场{int(row['胜场'])}胜",
+                f"{row['胜率']:.1f}%",
+                fc["hex"],
+                fc["emoji"],
+            )
+
 render_section_divider()
 
 # ==========================================
@@ -174,7 +205,7 @@ render_section_divider()
 # ==========================================
 render_section_title("原始战绩")
 st.dataframe(
-    stored_records[["date", "match_id", "player_name", "faction", "role", "is_win"]],
+    active_records[["date", "match_id", "player_name", "faction", "role", "is_win"]],
     use_container_width=True,
     hide_index=True,
 )
