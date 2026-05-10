@@ -15,7 +15,10 @@ except ImportError as exc:
     OpenAI = None
     openai_import_error = str(exc)
 
-from db_utils import delete_match_records, fetch_match_records, fix_existing_records, insert_match_records
+from db_utils import (
+    delete_match_records, fetch_match_image, fetch_match_records,
+    fix_existing_records, insert_match_images, insert_match_records,
+)
 from ui_utils import apply_base_styles, render_page_card, render_section_title
 
 DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -76,6 +79,8 @@ if "pending_match_records" not in st.session_state:
     )
 if "recognition_errors" not in st.session_state:
     st.session_state["recognition_errors"] = []
+if "match_images" not in st.session_state:
+    st.session_state["match_images"] = {}
 
 
 def normalize_record(record: dict, match_id: str, match_date: str) -> dict:
@@ -185,8 +190,12 @@ if st.button("开始识别", type="primary", use_container_width=True):
             try:
                 Image.open(uploaded_file).verify()
                 uploaded_file.seek(0)
+                image_bytes = uploaded_file.getvalue()
                 current_rows, _ = recognize_match_image(uploaded_file, match_date)
                 recognized_rows.extend(current_rows)
+                if current_rows:
+                    mid = current_rows[0]["match_id"]
+                    st.session_state["match_images"][mid] = image_bytes
             except Exception as exc:
                 recognition_errors.append(str(exc))
             progress_bar.progress(index / len(uploaded_files))
@@ -257,11 +266,18 @@ if st.button("存入数据库", use_container_width=True):
             if not ok:
                 st.error(f"存入数据库失败：{error_message}")
             else:
+                # Save match screenshots
+                images_to_save = st.session_state.get("match_images", {})
+                if images_to_save:
+                    img_ok, img_err = insert_match_images(images_to_save)
+                    if not img_ok:
+                        st.warning(f"截图保存失败：{img_err}")
                 st.success(f"已成功写入 {len(cleaned_records)} 条记录。")
                 st.session_state["pending_match_records"] = pd.DataFrame(
                     columns=["match_id", "date", "player_name", "faction", "role", "is_win"]
                 )
                 st.session_state["recognition_errors"] = []
+                st.session_state["match_images"] = {}
                 st.rerun()
         except Exception as exc:
             st.error(f"数据校验失败：{exc}")

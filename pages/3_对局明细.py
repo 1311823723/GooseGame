@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from db_utils import fetch_match_records
+from db_utils import fetch_match_image, fetch_match_records
 from ui_utils import (
     BRAND_COLORS, FACTION_COLORS,
     apply_base_styles, render_page_card, render_section_divider,
@@ -64,6 +64,11 @@ selected_match = st.selectbox(
 )
 
 match_data = stored_records[stored_records["match_id"] == selected_match].copy()
+
+# Match screenshot
+match_image = fetch_match_image(selected_match)
+if match_image:
+    st.image(match_image, caption="对局结算截图", use_container_width=True)
 
 # ==========================================
 # Winners

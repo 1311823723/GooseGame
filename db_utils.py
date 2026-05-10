@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import sqlite3
@@ -63,6 +64,8 @@ def _turso_arg(value):
         return {"type": "integer", "value": str(value)}
     if isinstance(value, float):
         return {"type": "float", "value": value}
+    if isinstance(value, bytes):
+        return {"type": "blob", "value": base64.b64encode(value).decode()}
     return {"type": "text", "value": str(value)}
 
 
@@ -217,6 +220,14 @@ def init_db() -> tuple[bool, str]:
                 )
                 """
             )
+            conn.execute(
+                """
+                create table if not exists match_images (
+                    match_id text primary key,
+                    image blob not null
+                )
+                """
+            )
             conn.commit()
         return True, ""
     except Exception as exc:
@@ -288,6 +299,51 @@ def fetch_match_records() -> tuple[pd.DataFrame, str]:
         return data, ""
     except Exception as exc:
         return pd.DataFrame(), str(exc)
+
+
+def insert_match_images(images: dict[str, bytes]) -> tuple[bool, str]:
+    """Insert or replace match screenshots. Key: match_id, Value: image bytes."""
+    if not images:
+        return True, ""
+    ok, error_message = init_db()
+    if not ok:
+        return False, error_message
+    try:
+        with get_conn() as conn:
+            for match_id, image_bytes in images.items():
+                conn.execute(
+                    "insert or replace into match_images (match_id, image) values (?, ?)",
+                    (match_id, image_bytes),
+                )
+            conn.commit()
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)
+
+
+def fetch_match_image(match_id: str) -> bytes | None:
+    ok, _ = init_db()
+    if not ok:
+        return None
+    try:
+        with get_conn() as conn:
+            url = os.environ.get("TURSO_DATABASE_URL", "")
+            if url:
+                cur = conn.execute(
+                    "select image from match_images where match_id = ?", (match_id,)
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return base64.b64decode(row[0])
+                return None
+            else:
+                cur = conn.execute(
+                    "select image from match_images where match_id = ?", (match_id,)
+                )
+                row = cur.fetchone()
+                return row[0] if row else None
+    except Exception:
+        return None
 
 
 def delete_match_records(record_ids: list[int]) -> tuple[bool, str]:
