@@ -281,11 +281,17 @@ if st.button("存入数据库", use_container_width=True):
             else:
                 # Save match screenshots
                 images_to_save = st.session_state.get("match_images", {})
+                img_saved = 0
                 if images_to_save:
                     img_ok, img_err = insert_match_images(images_to_save)
-                    if not img_ok:
+                    if img_ok:
+                        img_saved = len(images_to_save)
+                    else:
                         st.warning(f"截图保存失败：{img_err}")
-                st.success(f"已成功写入 {len(cleaned_records)} 条记录。")
+                msg = f"已成功写入 {len(cleaned_records)} 条记录"
+                if img_saved:
+                    msg += f"，保存 {img_saved} 张截图"
+                st.success(msg + "。")
                 st.session_state["pending_match_records"] = pd.DataFrame(
                     columns=["match_id", "date", "player_name", "faction", "role", "is_win"]
                 )

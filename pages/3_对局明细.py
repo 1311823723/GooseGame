@@ -66,9 +66,12 @@ selected_match = st.selectbox(
 match_data = stored_records[stored_records["match_id"] == selected_match].copy()
 
 # Match screenshot
-match_image = fetch_match_image(selected_match)
+with st.spinner("加载截图…"):
+    match_image = fetch_match_image(selected_match)
 if match_image:
     st.image(match_image, caption="对局结算截图", use_container_width=True)
+else:
+    st.caption("本局暂无结算截图（只对新导入的对局有效）")
 
 # ==========================================
 # Winners
