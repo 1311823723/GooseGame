@@ -388,6 +388,22 @@ def fetch_match_image(match_id: str) -> bytes | None:
         return None
 
 
+def update_match_record(record_id: int, match_id: str, date: str, player_name: str, faction: str, role: str, is_win: bool) -> tuple[bool, str]:
+    ok, error_message = init_db()
+    if not ok:
+        return False, error_message
+    try:
+        with get_conn() as conn:
+            conn.execute(
+                "update match_records set match_id=?, date=?, player_name=?, faction=?, role=?, is_win=? where id=?",
+                (match_id, date, player_name, faction, role, int(is_win), record_id),
+            )
+            conn.commit()
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)
+
+
 def delete_match_records(record_ids: list[int]) -> tuple[bool, str]:
     ok, error_message = init_db()
     if not ok:

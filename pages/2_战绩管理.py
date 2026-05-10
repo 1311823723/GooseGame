@@ -18,6 +18,7 @@ except ImportError as exc:
 from db_utils import (
     delete_match_records, fetch_match_image, fetch_match_records,
     fix_existing_records, insert_match_images, insert_match_records,
+    update_match_record,
 )
 from ui_utils import apply_base_styles, render_page_card, render_section_title
 
@@ -314,23 +315,71 @@ else:
         f'<p class="gg-section-title">已存战绩 <span class="gg-pill">{len(stored_records)} 条</span></p>',
         unsafe_allow_html=True,
     )
-    st.dataframe(stored_records, use_container_width=True, hide_index=True)
-    selected_ids = st.multiselect("选择要删除的 id", stored_records["id"].tolist())
-    col_del, col_fix = st.columns(2)
+
+    edited_df = st.data_editor(
+        stored_records,
+        use_container_width=True,
+        num_rows="dynamic",
+        column_config={
+            "id": st.column_config.NumberColumn("ID", disabled=True),
+            "match_id": st.column_config.TextColumn("对局ID"),
+            "date": st.column_config.TextColumn("日期"),
+            "player_name": st.column_config.TextColumn("玩家"),
+            "faction": st.column_config.SelectboxColumn("阵营", options=allowed_factions),
+            "role": st.column_config.TextColumn("职业"),
+            "is_win": st.column_config.CheckboxColumn("获胜"),
+        },
+        hide_index=True,
+    )
+
+    col_save, col_del, col_fix = st.columns(3)
+    with col_save:
+        if st.button("保存修改", use_container_width=True, type="primary"):
+            errors = []
+            for _, row in edited_df.iterrows():
+                try:
+                    rid = int(row["id"]) if pd.notna(row.get("id")) else None
+                    mid = str(row.get("match_id", "")).strip()
+                    dt = str(row.get("date", "")).strip()
+                    name = str(row.get("player_name", "")).strip()
+                    faction = str(row.get("faction", "")).strip()
+                    role = str(row.get("role", "")).strip()
+                    is_win = bool(row.get("is_win", False))
+                    if not name or not mid or not dt:
+                        continue
+                    if rid and rid > 0:
+                        ok, err = update_match_record(rid, mid, dt, name, faction, role, is_win)
+                    else:
+                        ok, err = insert_match_records([{
+                            "match_id": mid, "date": dt, "player_name": name,
+                            "faction": faction, "role": role, "is_win": is_win,
+                        }])
+                    if not ok:
+                        errors.append(err)
+                except Exception as exc:
+                    errors.append(str(exc))
+            if errors:
+                st.error(f"保存出错：{'; '.join(errors)}")
+            else:
+                st.success(f"已保存 {len(edited_df)} 条记录。")
+                st.rerun()
     with col_del:
-        if st.button("删除选中记录", use_container_width=True):
-            ok, error_message = delete_match_records(selected_ids)
-            if not ok:
-                st.error(f"删除失败：{error_message}")
-            else:
-                st.success(f"已删除 {len(selected_ids)} 条记录。")
-                st.rerun()
+        selected_ids = st.multiselect("选择要删除的 id", edited_df["id"].dropna().astype(int).tolist(), label_visibility="collapsed")
     with col_fix:
-        if st.button("根据映射表修正", use_container_width=True, help="根据 role_faction_map.json 批量修正已有记录的阵营和职业名"):
-            changes = fix_existing_records()
-            if changes:
-                for msg in changes:
-                    st.success(msg)
-                st.rerun()
-            else:
-                st.info("所有记录已符合映射表，无需修正。")
+        if st.button("删除选中", use_container_width=True):
+            if selected_ids:
+                ok, error_message = delete_match_records(selected_ids)
+                if not ok:
+                    st.error(f"删除失败：{error_message}")
+                else:
+                    st.success(f"已删除 {len(selected_ids)} 条记录。")
+                    st.rerun()
+
+    if st.button("根据映射表修正", use_container_width=True, help="根据 role_faction_map.json 批量修正已有记录的阵营和职业名"):
+        changes = fix_existing_records()
+        if changes:
+            for msg in changes:
+                st.success(msg)
+            st.rerun()
+        else:
+            st.info("所有记录已符合映射表，无需修正。")
