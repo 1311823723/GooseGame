@@ -1,4 +1,4 @@
 streamlit
 pandas
-anthropic
+google-generativeai
 pillow

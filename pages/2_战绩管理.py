@@ -1,4 +1,3 @@
-import base64
 import json
 import os
 from datetime import date
@@ -9,47 +8,51 @@ import streamlit as st
 from PIL import Image
 
 try:
-    from anthropic import Anthropic
-    anthropic_import_error = ""
+    import google.generativeai as genai
+    genai_import_error = ""
 except ImportError as exc:
-    Anthropic = None
-    anthropic_import_error = str(exc)
+    genai = None
+    genai_import_error = str(exc)
 
 from db_utils import delete_match_records, fetch_match_records, fix_existing_records, insert_match_records
 from ui_utils import apply_base_styles, render_page_card, render_section_title
 
 
-vision_prompt = "这是一张《鹅鸭杀》游戏结算截图。画面正中间下方是获胜玩家，上方一排是输掉的其他玩家。请结合鹅鸭杀游戏规则推断每个职业所属的阵营（鹅/鸭/中立），严格以 json 数组格式输出所有玩家信息。字段必须为：player_name(字符串), faction(字符串:鹅/鸭/中立), role(字符串:具体职业), is_win(布尔值:画面下方的获胜者为true，上方玩家为false)。所有的 json key 必须小写，不要输出任何 markdown 标记或多余文字。"
+vision_prompt = (
+    "这是一张《鹅鸭杀》游戏结算截图。画面正中间下方是获胜玩家，上方一排是输掉的其他玩家。"
+    "请结合鹅鸭杀游戏规则推断每个职业所属的阵营（鹅/鸭/中立），严格以 json 数组格式输出所有玩家信息。"
+    "字段必须为：player_name(字符串), faction(字符串:鹅/鸭/中立), role(字符串:具体职业), is_win(布尔值:画面下方的获胜者为true，上方玩家为false)。"
+    "所有的 json key 必须小写。只输出纯 json 数组，禁止输出 markdown 代码块或任何多余文字。"
+)
 required_keys = ["player_name", "faction", "role", "is_win"]
 allowed_factions = ["鹅", "鸭", "中立"]
 
 
-def get_provider_config() -> tuple[str, str, str]:
-    provider_base_url = str(st.secrets.get("third_party_base_url", os.getenv("third_party_base_url", ""))).strip()
-    provider_api_key = str(st.secrets.get("third_party_api_key", os.getenv("third_party_api_key", ""))).strip()
-    provider_model = str(st.secrets.get("third_party_model", os.getenv("third_party_model", "claude-opus-4-7"))).strip()
-    return provider_base_url, provider_api_key, provider_model
+def get_api_key() -> str:
+    return str(st.secrets.get("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", ""))).strip()
 
 
-provider_base_url, provider_api_key, provider_model = get_provider_config()
+gemini_api_key = get_api_key()
+if gemini_api_key and genai is not None:
+    genai.configure(api_key=gemini_api_key)
 
 st.set_page_config(page_title="战绩管理", layout="centered")
 apply_base_styles()
 render_page_card(
     pill_text="内部页面 · 战绩入库",
     title_text="战绩管理",
-    subtitle_text="上传结算截图，识别玩家阵营与职业，确认后存入数据库。",
+    subtitle_text="上传结算截图，由 Gemini 2.0 Flash 识别玩家阵营与职业，确认后存入数据库。",
 )
 
 # API status indicator
-api_ok = bool(provider_base_url)
+api_ok = bool(gemini_api_key)
 status_color = "#22C55E" if api_ok else "#F59E0B"
 status_text = "已配置" if api_ok else "未配置"
 st.markdown(
     f'<div class="gg-card" style="padding:10px 18px;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">'
     f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{status_color};"></span>'
-    f'<span style="font-weight:600;font-size:0.9rem;">识别接口：{status_text}</span>'
-    f'<span style="opacity:0.55;font-size:0.82rem;">{provider_model or ""}</span>'
+    f'<span style="font-weight:600;font-size:0.9rem;">Gemini API：{status_text}</span>'
+    f'<span style="opacity:0.55;font-size:0.82rem;">gemini-2.0-flash</span>'
     f'</div>',
     unsafe_allow_html=True,
 )
@@ -57,11 +60,11 @@ st.markdown(
 with st.expander("识别前准备", expanded=False):
     st.markdown("1. 安装依赖：`pip install -r requirements.txt`")
     st.markdown("2. 本地配置文件：`.streamlit/secrets.toml`")
-    st.markdown("3. 已写入 `third_party_base_url`、`third_party_api_key`、`third_party_model`")
+    st.markdown("3. 写入 `GEMINI_API_KEY = \"你的密钥\"`（[免费获取](https://aistudio.google.com/apikey)）")
     st.markdown("4. 修改后刷新本页面再开始识别")
 
-if Anthropic is None:
-    st.warning(f"当前未安装 anthropic sdk，截图识别暂时不可用：{anthropic_import_error}")
+if genai is None:
+    st.warning(f"当前未安装 google-generativeai，截图识别暂时不可用：{genai_import_error}")
 
 if "pending_match_records" not in st.session_state:
     st.session_state["pending_match_records"] = pd.DataFrame(
@@ -69,13 +72,6 @@ if "pending_match_records" not in st.session_state:
     )
 if "recognition_errors" not in st.session_state:
     st.session_state["recognition_errors"] = []
-
-
-def get_media_type(file_name: str) -> str:
-    lower_name = file_name.lower()
-    if lower_name.endswith(".png"):
-        return "image/png"
-    return "image/jpeg"
 
 
 def normalize_record(record: dict, match_id: str, match_date: str) -> dict:
@@ -105,51 +101,14 @@ def normalize_record(record: dict, match_id: str, match_date: str) -> dict:
     }
 
 
-def extract_text_from_response(response) -> str:
-    text_parts = []
-    for block in response.content:
-        block_text = getattr(block, "text", "")
-        if block_text:
-            text_parts.append(block_text)
-    return "\n".join(text_parts).strip()
-
-
 def recognize_match_image(uploaded_file, match_date: str) -> tuple[list[dict], str]:
     try:
-        image_bytes = uploaded_file.getvalue()
-        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-        media_type = get_media_type(uploaded_file.name)
+        image = Image.open(uploaded_file)
         match_id = f"{match_date}-{uuid4().hex[:12]}"
 
-        client_kwargs = {"api_key": provider_api_key}
-        if provider_base_url:
-            client_kwargs["base_url"] = provider_base_url
-
-        client = Anthropic(**client_kwargs)
-        response = client.messages.create(
-            model=provider_model,
-            max_tokens=4096,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": image_base64,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": vision_prompt,
-                        },
-                    ],
-                }
-            ],
-        )
-        response_text = extract_text_from_response(response)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content([vision_prompt, image])
+        response_text = response.text.strip()
     except Exception as exc:
         raise RuntimeError(f"识别失败：{uploaded_file.name} - {exc}") from exc
 
@@ -187,14 +146,10 @@ with st.container(border=True):
 if st.button("开始识别", type="primary", use_container_width=True):
     if not uploaded_files:
         st.error("请先上传至少一张截图。")
-    elif Anthropic is None:
-        st.error("未安装 anthropic sdk，请先执行 pip install -r requirements.txt。")
-    elif not provider_base_url:
-        st.error("未检测到 third_party_base_url，请检查 .streamlit/secrets.toml。")
-    elif not provider_api_key:
-        st.error("未检测到 third_party_api_key，请检查 .streamlit/secrets.toml。")
-    elif not provider_model:
-        st.error("未检测到 third_party_model，请检查 .streamlit/secrets.toml。")
+    elif genai is None:
+        st.error("未安装 google-generativeai，请先执行 pip install -r requirements.txt。")
+    elif not gemini_api_key:
+        st.error("未检测到 GEMINI_API_KEY，请在 .streamlit/secrets.toml 中配置。")
     else:
         recognized_rows = []
         recognition_errors = []
