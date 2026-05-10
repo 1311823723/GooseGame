@@ -36,28 +36,34 @@ stored_records["is_win"] = stored_records["is_win"].astype(bool)
 
 match_ids = sorted(stored_records["match_id"].unique(), reverse=True)
 
+# Build match info for display labels
+match_info = {}
+for mid in match_ids:
+    m = stored_records[stored_records["match_id"] == mid]
+    winners = m[m["is_win"] == True]
+    match_info[mid] = {
+        "date": m["date"].iloc[0],
+        "winners": "、".join(winners["player_name"].tolist()),
+        "factions": "、".join(sorted(winners["faction"].unique())),
+    }
+
+dates = sorted(set(info["date"] for info in match_info.values()), reverse=True)
+
 st.markdown(
     f'<p style="opacity:0.6;font-size:0.85rem;margin-bottom:0.25rem;">共 <strong>{len(match_ids)}</strong> 场对局</p>',
     unsafe_allow_html=True,
 )
+selected_date = st.selectbox("选择日期", dates, label_visibility="collapsed")
+
+date_match_ids = [mid for mid in match_ids if match_info[mid]["date"] == selected_date]
 selected_match = st.selectbox(
     "选择对局",
-    match_ids,
-    format_func=lambda mid: f"{stored_records[stored_records['match_id'] == mid]['date'].iloc[0]} — {mid}",
+    date_match_ids,
+    format_func=lambda mid: f"{match_info[mid]['factions']} 胜 · {match_info[mid]['winners']}",
     label_visibility="collapsed",
 )
 
 match_data = stored_records[stored_records["match_id"] == selected_match].copy()
-match_date = match_data["date"].iloc[0]
-
-st.markdown(
-    f'<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">'
-    f'<span style="font-weight:600;color:#06B6D4;">{match_date}</span>'
-    f'<span style="opacity:0.4;">|</span>'
-    f'<span style="opacity:0.6;font-size:0.82rem;">{selected_match}</span>'
-    f'</div>',
-    unsafe_allow_html=True,
-)
 
 # ==========================================
 # Winners
