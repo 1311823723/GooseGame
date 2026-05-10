@@ -8,10 +8,12 @@ import streamlit as st
 from PIL import Image
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     genai_import_error = ""
 except ImportError as exc:
     genai = None
+    types = None
     genai_import_error = str(exc)
 
 from db_utils import delete_match_records, fetch_match_records, fix_existing_records, insert_match_records
@@ -33,8 +35,9 @@ def get_api_key() -> str:
 
 
 gemini_api_key = get_api_key()
+gemini_client = None
 if gemini_api_key and genai is not None:
-    genai.configure(api_key=gemini_api_key)
+    gemini_client = genai.Client(api_key=gemini_api_key)
 
 st.set_page_config(page_title="战绩管理", layout="centered")
 apply_base_styles()
@@ -64,7 +67,7 @@ with st.expander("识别前准备", expanded=False):
     st.markdown("4. 修改后刷新本页面再开始识别")
 
 if genai is None:
-    st.warning(f"当前未安装 google-generativeai，截图识别暂时不可用：{genai_import_error}")
+    st.warning(f"当前未安装 google-genai，截图识别暂时不可用：{genai_import_error}")
 
 if "pending_match_records" not in st.session_state:
     st.session_state["pending_match_records"] = pd.DataFrame(
@@ -106,8 +109,10 @@ def recognize_match_image(uploaded_file, match_date: str) -> tuple[list[dict], s
         image = Image.open(uploaded_file)
         match_id = f"{match_date}-{uuid4().hex[:12]}"
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content([vision_prompt, image])
+        response = gemini_client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=[vision_prompt, image],
+        )
         response_text = response.text.strip()
     except Exception as exc:
         raise RuntimeError(f"识别失败：{uploaded_file.name} - {exc}") from exc
@@ -147,8 +152,8 @@ if st.button("开始识别", type="primary", use_container_width=True):
     if not uploaded_files:
         st.error("请先上传至少一张截图。")
     elif genai is None:
-        st.error("未安装 google-generativeai，请先执行 pip install -r requirements.txt。")
-    elif not gemini_api_key:
+        st.error("未安装 google-genai，请先执行 pip install -r requirements.txt。")
+    elif not gemini_client:
         st.error("未检测到 GEMINI_API_KEY，请在 .streamlit/secrets.toml 中配置。")
     else:
         recognized_rows = []
