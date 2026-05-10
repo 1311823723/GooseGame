@@ -164,6 +164,7 @@ def apply_role_mapping(records: list[dict]) -> list[dict]:
             if fragment in player_name:
                 record["player_name"] = canonical_name
                 break
+        record["player_name"] = record["player_name"].upper()
     return records
 
 
@@ -199,6 +200,13 @@ def fix_existing_records() -> list[str]:
             )
             if cur.rowcount:
                 changes.append(f"name unified: contains '{fragment}' -> {canonical_name} ({cur.rowcount} rows)")
+
+        # Uppercase all player names
+        cur = conn.execute(
+            "update match_records set player_name = upper(player_name) where player_name != upper(player_name)"
+        )
+        if cur.rowcount:
+            changes.append(f"name uppercased: {cur.rowcount} rows")
 
         # Auto-fix winners: if any goose/duck wins in a match, all of that faction win
         url = os.environ.get("TURSO_DATABASE_URL", "")
@@ -394,6 +402,7 @@ def update_match_record(record_id: int, match_id: str, date: str, player_name: s
         return False, error_message
     try:
         with get_conn() as conn:
+            player_name = player_name.upper()
             conn.execute(
                 "update match_records set match_id=?, date=?, player_name=?, faction=?, role=?, is_win=? where id=?",
                 (match_id, date, player_name, faction, role, int(is_win), record_id),
