@@ -13,7 +13,7 @@ from ui_utils import (
 st.set_page_config(page_title="数据大厅", layout="centered")
 apply_base_styles()
 render_page_card(
-    pill_text="群友可看 · 战绩统计",
+    pill_text="战绩统计",
     title_text="数据大厅",
     subtitle_text="查看阵营胜率、职业胜率榜，以及个人战绩明细。",
 )
