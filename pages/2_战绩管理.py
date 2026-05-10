@@ -59,7 +59,7 @@ st.markdown(
     f'<div class="gg-card" style="padding:10px 18px;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">'
     f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{status_color};"></span>'
     f'<span style="font-weight:600;font-size:0.9rem;">DashScope API：{status_text}</span>'
-    f'<span style="opacity:0.55;font-size:0.82rem;">qwen-vl-plus-latest</span>'
+    f'<span style="opacity:0.55;font-size:0.82rem;">qwen3-vl-235b-a22b-thinking</span>'
     f'</div>',
     unsafe_allow_html=True,
 )
@@ -138,7 +138,7 @@ def recognize_match_image(uploaded_file, match_date: str) -> tuple[list[dict], s
         match_id = f"{match_date}-{uuid4().hex[:12]}"
 
         response = dashscope_client.chat.completions.create(
-            model="qwen-vl-plus-latest",
+            model="qwen3-vl-235b-a22b-thinking",
             messages=[
                 {
                     "role": "user",
