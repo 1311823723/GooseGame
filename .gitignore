@@ -5,6 +5,7 @@ node_modules/
 .next/
 .vercel/
 *.log
+*.tsbuildinfo
 *.csv
 *.sqlite3
 .streamlit/secrets.toml

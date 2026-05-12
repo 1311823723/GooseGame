@@ -31,6 +31,14 @@ export default function HomeClient({ records, error }: HomeClientProps) {
 
   return (
     <main className="shell">
+      <header className="topBar">
+        <div className="brandMark" aria-hidden="true">G</div>
+        <div>
+          <strong>GooseGame Lab</strong>
+          <span>对局数据与发车管理</span>
+        </div>
+      </header>
+
       <section className="hero">
         <div>
           <p className="eyebrow">GooseGame</p>
@@ -50,6 +58,7 @@ export default function HomeClient({ records, error }: HomeClientProps) {
             key={item.id}
             className={activeView === item.id ? "active" : ""}
             onClick={() => setActiveView(item.id)}
+            aria-current={activeView === item.id ? "page" : undefined}
             type="button"
           >
             {item.label}
@@ -408,6 +417,7 @@ function AdminPanel() {
         <label className="dropZone">
           <input type="file" accept="image/png,image/jpeg" multiple />
           <span>上传结算截图</span>
+          <small>支持 PNG / JPG，多张截图可一次选择</small>
         </label>
         <button className="primaryButton" type="button">开始识别</button>
       </div>
