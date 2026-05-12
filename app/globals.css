@@ -72,6 +72,11 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 button:focus-visible,
 select:focus-visible,
 input:focus-visible {
@@ -421,7 +426,9 @@ small {
 .filters select,
 .playerSelect select,
 .joinForm input,
-.joinForm select {
+.joinForm select,
+.adminRow input,
+.adminRow select {
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--line-strong);
@@ -436,7 +443,9 @@ small {
 .filters select:hover,
 .playerSelect select:hover,
 .joinForm input:hover,
-.joinForm select:hover {
+.joinForm select:hover,
+.adminRow input:hover,
+.adminRow select:hover {
   border-color: rgba(17, 138, 178, 0.34);
   background: var(--panel-solid);
 }
@@ -450,6 +459,18 @@ small {
   background: rgba(255, 255, 255, 0.58);
   color: var(--muted);
   line-height: 1.7;
+}
+
+.successState {
+  border-color: rgba(20, 184, 138, 0.24);
+  background: rgba(238, 252, 247, 0.74);
+  color: #087857;
+}
+
+.errorState {
+  border-color: rgba(233, 77, 106, 0.24);
+  background: rgba(255, 242, 245, 0.74);
+  color: #b4233d;
 }
 
 .factionRow,
@@ -651,6 +672,36 @@ small {
   transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
 }
 
+.ghostButton {
+  min-height: 38px;
+  border: 1px solid rgba(17, 138, 178, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  font-weight: 850;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.ghostButton:hover {
+  border-color: rgba(17, 138, 178, 0.38);
+  background: rgba(255, 255, 255, 0.92);
+  transform: translateY(-1px);
+}
+
+.actionGroup {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.compactButton {
+  grid-column: auto;
+  min-height: 38px;
+  padding: 0 14px;
+}
+
 .joinForm button:hover,
 .primaryButton:hover {
   filter: brightness(1.04);
@@ -675,6 +726,25 @@ small {
   grid-template-columns: 58px minmax(80px, 1fr) 58px minmax(84px, 120px);
   padding: 12px 0;
   border-bottom: 1px solid var(--line);
+}
+
+.matchScreenshot {
+  overflow: hidden;
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.matchScreenshot img {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+}
+
+.screenshotEmpty {
+  margin-bottom: 14px;
 }
 
 .recordRow:last-child {
@@ -733,6 +803,95 @@ small {
   padding-left: 18px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.databasePanel {
+  display: grid;
+  gap: 14px;
+}
+
+.adminDatabase {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.adminMatchList,
+.adminRows {
+  display: grid;
+  gap: 10px;
+}
+
+.adminEditor {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.editorToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.editorToolbar strong {
+  overflow-wrap: anywhere;
+}
+
+.adminScreenshot img {
+  max-height: 430px;
+}
+
+.adminRows {
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.adminRow {
+  display: grid;
+  grid-template-columns: 52px minmax(112px, 0.72fr) minmax(132px, 1fr) 96px minmax(120px, 1fr) 64px;
+  gap: 10px;
+  align-items: end;
+  min-width: 760px;
+  padding: 12px;
+  border: 1px solid rgba(16, 32, 39, 0.07);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.adminRow label {
+  display: grid;
+  gap: 6px;
+}
+
+.adminRow label span,
+.rowId {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.rowId {
+  align-self: center;
+  color: var(--cyan);
+}
+
+.winToggle {
+  justify-items: center;
+}
+
+.winToggle input {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  accent-color: var(--green);
 }
 
 .skeletonHero {
@@ -875,7 +1034,8 @@ small {
   }
 
   .roleList,
-  .recordTable {
+  .recordTable,
+  .adminRows {
     overflow-x: auto;
     padding-bottom: 2px;
     -webkit-overflow-scrolling: touch;
@@ -887,6 +1047,19 @@ small {
 
   .recordRow {
     min-width: 420px;
+  }
+
+  .adminDatabase {
+    grid-template-columns: 1fr;
+  }
+
+  .editorToolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .editorToolbar .actionGroup {
+    justify-content: flex-start;
   }
 
   .compactRow {

@@ -8,6 +8,7 @@ export type MatchRecord = {
   faction: Faction;
   role: string;
   isWin: boolean;
+  imageDataUrl?: string;
 };
 
 export type AttendanceRecord = {

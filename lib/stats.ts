@@ -85,6 +85,7 @@ export function buildMatchCards(records: MatchRecord[]) {
         players: rows.length,
         winners: winners.map((row) => row.playerName).join("、") || "暂无",
         factions: Array.from(new Set(winners.map((row) => row.faction))).join("、") || "暂无",
+        imageDataUrl: rows.find((row) => row.imageDataUrl)?.imageDataUrl,
         rows,
       };
     })
