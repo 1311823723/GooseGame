@@ -2,7 +2,16 @@ import pandas as pd
 import streamlit as st
 
 from attendance_utils import build_attendance_summary, get_today_str, load_attendance, save_attendance_record, time_nodes
-from ui_utils import apply_base_styles, render_live_indicator, render_page_card, render_player_tag, render_section_divider, render_section_title, render_stat_card
+from ui_utils import (
+    apply_base_styles,
+    render_empty_state,
+    render_live_indicator,
+    render_page_card,
+    render_player_tag,
+    render_section_divider,
+    render_section_title,
+    render_stat_card,
+)
 
 
 today_str = get_today_str()
@@ -23,15 +32,10 @@ tab1, tab2 = st.tabs(["📝 登记上车", "📊 实时大盘"])
 # Tab 1: 登记上车
 # ==========================================
 with tab1:
-    st.markdown(
-        '<div style="text-align:center;font-size:2.2rem;letter-spacing:0.6rem;margin-bottom:0.75rem;">'
-        '🪿 🦆 ⚪'
-        '</div>',
-        unsafe_allow_html=True,
-    )
     render_section_title("今晚几点战？")
 
     with st.container(border=True):
+        st.caption("登记你的可用时间，系统会自动覆盖同名旧记录。")
         name = st.text_input("你的名字", placeholder="请输入群昵称", label_visibility="collapsed")
         col1, col2 = st.columns(2)
         with col1:
@@ -102,14 +106,7 @@ with tab2:
             st.dataframe(data, use_container_width=True, hide_index=True)
 
     else:
-        st.markdown(
-            '<div style="text-align:center;padding:3rem 1rem;">'
-            '<div style="font-size:4rem;">🪿</div>'
-            '<p style="color:#94A3B8;margin-top:1rem;font-size:1.05rem;">目前还没有人报名</p>'
-            '<p style="color:#64748B;font-size:0.85rem;">快去登记上车成为第一只鹅吧！</p>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
+        render_empty_state("目前还没有人报名", "去登记上车，成为今晚第一条在线记录。", "🪿")
 
     render_section_divider()
     if st.button("🔄 刷新大盘数据", use_container_width=True):

@@ -5,7 +5,7 @@ import streamlit as st
 from db_utils import fetch_match_records
 from ui_utils import (
     BRAND_COLORS, FACTION_COLORS,
-    apply_base_styles, render_page_card, render_section_divider,
+    apply_base_styles, render_empty_state, render_page_card, render_record_row, render_section_divider,
     render_section_title, render_stat_card,
 )
 
@@ -24,7 +24,7 @@ if load_error:
     st.stop()
 
 if stored_records.empty:
-    st.info("还没有战绩数据，请先去战绩管理页面导入截图。")
+    render_empty_state("还没有战绩数据", "请先去战绩管理页面导入结算截图。", "📊")
     st.stop()
 
 stored_records["is_win"] = stored_records["is_win"].astype(bool)
@@ -62,14 +62,12 @@ for _, row in faction_summary.iterrows():
     faction = row["faction"]
     fc = FACTION_COLORS.get(faction, FACTION_COLORS["中立"])
     win_pct = f"{row['胜率']:.1%}"
-    st.markdown(
-        f'<div class="gg-card" style="padding:12px 18px;margin:0.35rem 0;display:flex;align-items:center;gap:0.75rem;">'
-        f'<span style="font-size:1.6rem;">{fc["emoji"]}</span>'
-        f'<span style="font-weight:700;font-size:1.05rem;color:{fc["hex"]};min-width:2.5rem;">{faction}</span>'
-        f'<span style="flex:1;opacity:0.75;font-size:0.9rem;">{int(row["对局数"])} 局 · {int(row["胜局数"])} 胜</span>'
-        f'<span style="font-weight:800;font-size:1.1rem;color:{fc["hex"]};">{win_pct}</span>'
-        f'</div>',
-        unsafe_allow_html=True,
+    render_record_row(
+        faction,
+        f'{int(row["对局数"])} 局 · {int(row["胜局数"])} 胜',
+        win_pct,
+        fc["hex"],
+        fc["emoji"],
     )
 
 # Altair faction bar chart
@@ -113,13 +111,13 @@ for _, row in top_roles.iterrows():
     rate = row["胜率"]
     bar_pct = rate * 100
     st.markdown(
-        f'<div class="gg-card" style="padding:8px 16px;margin:0.25rem 0;display:flex;align-items:center;gap:0.6rem;">'
-        f'<span style="font-weight:600;min-width:5rem;font-size:0.9rem;">{row["role"]}</span>'
-        f'<div style="flex:1;height:7px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;">'
-        f'<div style="height:100%;width:{bar_pct}%;background:linear-gradient(90deg,#059669,#10B981);border-radius:4px;"></div>'
+        f'<div class="gg-list-card">'
+        f'<span class="gg-list-main" style="min-width:5rem;">{row["role"]}</span>'
+        f'<div style="flex:1;min-width:80px;height:8px;background:#E5E7EB;border-radius:999px;overflow:hidden;">'
+        f'<div style="height:100%;width:{bar_pct}%;background:#047857;border-radius:999px;"></div>'
         f'</div>'
-        f'<span style="font-weight:700;font-size:0.85rem;min-width:2.8rem;text-align:right;">{rate:.1%}</span>'
-        f'<span style="font-size:0.75rem;opacity:0.55;">({int(row["胜场数"])}/{int(row["出场总次数"])})</span>'
+        f'<span style="font-weight:800;font-size:0.86rem;min-width:3.2rem;text-align:right;color:#111827;">{rate:.1%}</span>'
+        f'<span class="gg-row-muted">({int(row["胜场数"])}/{int(row["出场总次数"])})</span>'
         f'</div>',
         unsafe_allow_html=True,
     )

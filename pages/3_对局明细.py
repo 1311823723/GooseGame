@@ -4,7 +4,7 @@ import streamlit as st
 from db_utils import fetch_match_image, fetch_match_records
 from ui_utils import (
     BRAND_COLORS, FACTION_COLORS,
-    apply_base_styles, render_page_card, render_section_divider,
+    apply_base_styles, render_empty_state, render_page_card, render_record_row, render_section_divider,
     render_section_title, render_stat_card,
 )
 
@@ -23,13 +23,7 @@ if load_error:
     st.stop()
 
 if stored_records.empty:
-    st.markdown(
-        '<div style="text-align:center;padding:3rem 1rem;">'
-        '<div style="font-size:4rem;">🪿</div>'
-        '<p style="color:#94A3B8;margin-top:1rem;">还没有战绩数据。</p>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+    render_empty_state("还没有战绩数据", "导入结算截图后，就可以按对局复盘身份和胜负。", "🪿")
     st.stop()
 
 stored_records["is_win"] = stored_records["is_win"].astype(bool)
@@ -83,14 +77,12 @@ if not winners.empty:
     for _, row in winners.iterrows():
         faction = row["faction"]
         fc = FACTION_COLORS.get(faction, FACTION_COLORS["中立"])
-        st.markdown(
-            f'<div class="gg-card gg-card-goose" style="padding:10px 18px;margin:0.3rem 0;display:flex;align-items:center;gap:0.75rem;">'
-            f'<span style="font-size:1.5rem;">{fc["emoji"]}</span>'
-            f'<span style="font-weight:700;font-size:1.05rem;">{row["player_name"]}</span>'
-            f'<span class="gg-pill-win">WIN</span>'
-            f'<span style="margin-left:auto;opacity:0.65;font-size:0.85rem;">{faction} · {row["role"]}</span>'
-            f'</div>',
-            unsafe_allow_html=True,
+        render_record_row(
+            row["player_name"],
+            f'{faction} · {row["role"]}',
+            "WIN",
+            fc["hex"],
+            fc["emoji"],
         )
 else:
     st.caption("无获胜者数据")
@@ -105,14 +97,12 @@ if not losers.empty:
     for _, row in losers.iterrows():
         faction = row["faction"]
         fc = FACTION_COLORS.get(faction, FACTION_COLORS["中立"])
-        st.markdown(
-            f'<div class="gg-card" style="padding:10px 18px;margin:0.3rem 0;display:flex;align-items:center;gap:0.75rem;opacity:0.88;">'
-            f'<span style="font-size:1.5rem;">{fc["emoji"]}</span>'
-            f'<span style="font-weight:700;font-size:1.05rem;">{row["player_name"]}</span>'
-            f'<span class="gg-pill-lose">LOSE</span>'
-            f'<span style="margin-left:auto;opacity:0.65;font-size:0.85rem;">{faction} · {row["role"]}</span>'
-            f'</div>',
-            unsafe_allow_html=True,
+        render_record_row(
+            row["player_name"],
+            f'{faction} · {row["role"]}',
+            "LOSE",
+            fc["hex"],
+            fc["emoji"],
         )
 else:
     st.caption("无其他玩家数据")
@@ -169,14 +159,13 @@ for mid in match_ids:
 # Recent 10 as cards
 recent = match_overview_rows[:10]
 for match in recent:
-    st.markdown(
-        f'<div class="gg-card" style="padding:10px 18px;margin:0.3rem 0;display:flex;align-items:center;gap:0.75rem;">'
-        f'<span style="font-weight:600;color:#06B6D4;min-width:6.5rem;">{match["日期"]}</span>'
-        f'<span style="opacity:0.55;font-size:0.85rem;">{match["人数"]}人</span>'
-        f'<span class="gg-pill-goose" style="font-size:0.75rem;">{match["胜方阵营"]}</span>'
-        f'<span style="flex:1;text-align:right;font-size:0.85rem;opacity:0.85;">{match["胜者"]}</span>'
-        f'</div>',
-        unsafe_allow_html=True,
+    render_record_row(
+        match["日期"],
+        f'{match["人数"]} 人',
+        match["胜方阵营"],
+        BRAND_COLORS["accent"],
+        "",
+        match["胜者"],
     )
 
 if len(match_overview_rows) > 10:
