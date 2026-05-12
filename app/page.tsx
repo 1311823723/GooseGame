@@ -1,11 +1,22 @@
 import HomeClient from "./home-client";
-import { fetchMatchRecords } from "@/lib/turso-match-records";
+import { fetchMatchDates, fetchMatchRecords } from "@/lib/turso-match-records";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const { records, error } = await fetchMatchRecords();
+  const dateResult = await fetchMatchDates();
+  const selectedDate = dateResult.latestDate || "全部";
+  const { records, error } = dateResult.error
+    ? { records: [], error: dateResult.error }
+    : await fetchMatchRecords(selectedDate);
 
-  return <HomeClient records={records} error={error} />;
+  return (
+    <HomeClient
+      records={records}
+      dates={dateResult.dates}
+      initialDate={selectedDate}
+      error={error}
+    />
+  );
 }

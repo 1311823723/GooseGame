@@ -13,6 +13,8 @@ type View = "dashboard" | "attendance" | "matches" | "admin";
 
 type HomeClientProps = {
   records: MatchRecord[];
+  dates: string[];
+  initialDate: string;
   error: string | null;
 };
 
@@ -43,11 +45,35 @@ const navItems: { id: View; label: string }[] = [
   { id: "admin", label: "入库" },
 ];
 
-export default function HomeClient({ records, error }: HomeClientProps) {
+export default function HomeClient({ records, dates, initialDate, error }: HomeClientProps) {
   const [activeView, setActiveView] = useState<View>("dashboard");
-  const matchCards = useMemo(() => buildMatchCards(records), [records]);
-  const playerCount = useMemo(() => new Set(records.map((record) => record.playerName)).size, [records]);
-  const matchCount = useMemo(() => new Set(records.map((record) => record.matchId)).size, [records]);
+  const [loadedRecords, setLoadedRecords] = useState(records);
+  const [selectedDataDate, setSelectedDataDate] = useState(initialDate);
+  const [dataError, setDataError] = useState(error);
+  const [loadingRecords, setLoadingRecords] = useState(false);
+  const dateOptions = useMemo(() => ["全部", ...dates], [dates]);
+  const matchCards = useMemo(() => buildMatchCards(loadedRecords), [loadedRecords]);
+  const playerCount = useMemo(() => new Set(loadedRecords.map((record) => record.playerName)).size, [loadedRecords]);
+  const matchCount = useMemo(() => new Set(loadedRecords.map((record) => record.matchId)).size, [loadedRecords]);
+
+  async function loadRecordsForDate(date: string) {
+    setSelectedDataDate(date);
+    setLoadingRecords(true);
+    setDataError(null);
+    try {
+      const response = await fetch(`/api/match-records?date=${encodeURIComponent(date)}`, { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "读取战绩数据失败。");
+      }
+      setLoadedRecords(body.records as MatchRecord[]);
+    } catch (fetchError) {
+      setDataError(fetchError instanceof Error ? fetchError.message : "读取战绩数据失败。");
+      setLoadedRecords([]);
+    } finally {
+      setLoadingRecords(false);
+    }
+  }
 
   return (
     <main className="shell">
@@ -86,11 +112,28 @@ export default function HomeClient({ records, error }: HomeClientProps) {
         ))}
       </nav>
 
-      {error ? <StatusPanel title="真实数据读取失败" message={error} /> : null}
+      {dataError ? <StatusPanel title="真实数据读取失败" message={dataError} /> : null}
+      {loadingRecords ? <StatusPanel title="正在切换数据" message="正在按所选日期读取战绩与截图。" /> : null}
 
-      {activeView === "dashboard" && <Dashboard records={records} />}
+      {activeView === "dashboard" && (
+        <Dashboard
+          records={loadedRecords}
+          dates={dateOptions}
+          selectedDate={selectedDataDate}
+          onDateChange={loadRecordsForDate}
+          loading={loadingRecords}
+        />
+      )}
       {activeView === "attendance" && <AttendancePanel />}
-      {activeView === "matches" && <MatchesPanel matches={matchCards} />}
+      {activeView === "matches" && (
+        <MatchesPanel
+          matches={matchCards}
+          dates={dateOptions}
+          selectedDate={selectedDataDate}
+          onDateChange={loadRecordsForDate}
+          loading={loadingRecords}
+        />
+      )}
       {activeView === "admin" && <AdminPanel />}
     </main>
   );
@@ -128,16 +171,20 @@ function StatusPanel({
   );
 }
 
-function Dashboard({ records }: { records: MatchRecord[] }) {
-  const dates = useMemo(
-    () => ["全部", ...Array.from(new Set(records.map((record) => record.date))).sort((a, b) => b.localeCompare(a))],
-    [records],
-  );
-  const [selectedDate, setSelectedDate] = useState("全部");
-  const activeRecords = useMemo(
-    () => records.filter((record) => selectedDate === "全部" || record.date === selectedDate),
-    [records, selectedDate],
-  );
+function Dashboard({
+  records,
+  dates,
+  selectedDate,
+  onDateChange,
+  loading,
+}: {
+  records: MatchRecord[];
+  dates: string[];
+  selectedDate: string;
+  onDateChange: (date: string) => void;
+  loading: boolean;
+}) {
+  const activeRecords = records;
   const playerOptions = useMemo(
     () => Array.from(new Set(activeRecords.map((record) => record.playerName))).sort((a, b) => a.localeCompare(b, "zh-CN")),
     [activeRecords],
@@ -176,7 +223,8 @@ function Dashboard({ records }: { records: MatchRecord[] }) {
             <select
               id="dashboard-date-filter"
               value={selectedDate}
-              onChange={(event) => setSelectedDate(event.target.value)}
+              onChange={(event) => onDateChange(event.target.value)}
+              disabled={loading}
             >
               {dates.map((date) => (
                 <option key={date} value={date}>
@@ -353,16 +401,20 @@ function AttendancePanel() {
   );
 }
 
-function MatchesPanel({ matches }: { matches: ReturnType<typeof buildMatchCards> }) {
-  const dates = useMemo(
-    () => ["全部", ...Array.from(new Set(matches.map((match) => match.date))).sort((a, b) => b.localeCompare(a))],
-    [matches],
-  );
-  const [selectedDate, setSelectedDate] = useState("全部");
-  const filteredMatches = useMemo(
-    () => matches.filter((match) => selectedDate === "全部" || match.date === selectedDate),
-    [matches, selectedDate],
-  );
+function MatchesPanel({
+  matches,
+  dates,
+  selectedDate,
+  onDateChange,
+  loading,
+}: {
+  matches: ReturnType<typeof buildMatchCards>;
+  dates: string[];
+  selectedDate: string;
+  onDateChange: (date: string) => void;
+  loading: boolean;
+}) {
+  const filteredMatches = matches;
   const [selectedMatchId, setSelectedMatchId] = useState(matches[0]?.matchId || "");
   const selected = filteredMatches.find((match) => match.matchId === selectedMatchId) || filteredMatches[0];
 
@@ -400,9 +452,10 @@ function MatchesPanel({ matches }: { matches: ReturnType<typeof buildMatchCards>
               id="match-date-filter"
               value={selectedDate}
               onChange={(event) => {
-                setSelectedDate(event.target.value);
+                onDateChange(event.target.value);
                 setSelectedMatchId("");
               }}
+              disabled={loading}
             >
               {dates.map((date) => (
                 <option key={date} value={date}>
