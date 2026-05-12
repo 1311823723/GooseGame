@@ -184,24 +184,23 @@ function Dashboard({
   onDateChange: (date: string) => void;
   loading: boolean;
 }) {
-  const activeRecords = records;
   const playerOptions = useMemo(
-    () => Array.from(new Set(activeRecords.map((record) => record.playerName))).sort((a, b) => a.localeCompare(b, "zh-CN")),
-    [activeRecords],
+    () => Array.from(new Set(records.map((record) => record.playerName))).sort((a, b) => a.localeCompare(b, "zh-CN")),
+    [records],
   );
   const [selectedPlayer, setSelectedPlayer] = useState("");
   const currentPlayer = playerOptions.includes(selectedPlayer) ? selectedPlayer : playerOptions[0] || "";
   const playerRecords = useMemo(
-    () => activeRecords.filter((record) => record.playerName === currentPlayer),
-    [activeRecords, currentPlayer],
+    () => records.filter((record) => record.playerName === currentPlayer),
+    [records, currentPlayer],
   );
-  const factionSummary = useMemo(() => buildFactionSummary(activeRecords), [activeRecords]);
-  const roleSummary = useMemo(() => buildRoleSummary(activeRecords), [activeRecords]);
-  const players = new Set(activeRecords.map((record) => record.playerName)).size;
-  const winRate = activeRecords.length
-    ? activeRecords.filter((record) => record.isWin).length / activeRecords.length
+  const factionSummary = useMemo(() => buildFactionSummary(records), [records]);
+  const roleSummary = useMemo(() => buildRoleSummary(records), [records]);
+  const players = new Set(records.map((record) => record.playerName)).size;
+  const winRate = records.length
+    ? records.filter((record) => record.isWin).length / records.length
     : 0;
-  const matchCount = new Set(activeRecords.map((record) => record.matchId)).size;
+  const matchCount = new Set(records.map((record) => record.matchId)).size;
   const playerWinRate = playerRecords.length
     ? playerRecords.filter((record) => record.isWin).length / playerRecords.length
     : 0;
@@ -414,9 +413,8 @@ function MatchesPanel({
   onDateChange: (date: string) => void;
   loading: boolean;
 }) {
-  const filteredMatches = matches;
   const [selectedMatchId, setSelectedMatchId] = useState(matches[0]?.matchId || "");
-  const selected = filteredMatches.find((match) => match.matchId === selectedMatchId) || filteredMatches[0];
+  const selected = matches.find((match) => match.matchId === selectedMatchId) || matches[0];
 
   if (!matches.length) {
     return (
@@ -471,11 +469,11 @@ function MatchesPanel({
         <div className="panelHead">
           <div>
             <p className="kicker">全部对局</p>
-            <h2>{filteredMatches.length} 场</h2>
+            <h2>{matches.length} 场</h2>
           </div>
         </div>
-        {filteredMatches.length ? (
-          filteredMatches.map((match) => (
+        {matches.length ? (
+          matches.map((match) => (
             <button
               key={match.matchId}
               className={selected?.matchId === match.matchId ? "matchCard active" : "matchCard"}
@@ -541,12 +539,20 @@ function AdminPanel() {
   const [selectedMatchId, setSelectedMatchId] = useState("");
   const [selected, setSelected] = useState<AdminMatch | null>(null);
   const [draftRows, setDraftRows] = useState<EditableRow[]>([]);
+  const [deletedDraftIds, setDeletedDraftIds] = useState<number[]>([]);
   const [loadingDates, setLoadingDates] = useState(true);
   const [loadingSummaries, setLoadingSummaries] = useState(false);
   const [loadingMatch, setLoadingMatch] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+
+  function resetSelectedMatch() {
+    setSelectedMatchId("");
+    setSelected(null);
+    setDraftRows([]);
+    setDeletedDraftIds([]);
+  }
 
   async function loadDates() {
     setLoadingDates(true);
@@ -570,8 +576,7 @@ function AdminPanel() {
   async function loadSummaries(date: string) {
     if (!date) {
       setSummaries([]);
-      setSelectedMatchId("");
-      setSelected(null);
+      resetSelectedMatch();
       return;
     }
     setLoadingSummaries(true);
@@ -584,9 +589,7 @@ function AdminPanel() {
       }
       const nextSummaries = body.matches as MatchSummary[];
       setSummaries(nextSummaries);
-      setSelectedMatchId("");
-      setSelected(null);
-      setDraftRows([]);
+      resetSelectedMatch();
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "对局列表读取失败。");
     } finally {
@@ -596,8 +599,7 @@ function AdminPanel() {
 
   async function loadMatch(matchId: string) {
     if (!matchId) {
-      setSelected(null);
-      setDraftRows([]);
+      resetSelectedMatch();
       return;
     }
     setLoadingMatch(true);
@@ -611,6 +613,7 @@ function AdminPanel() {
       const nextMatch = body.match as AdminMatch | null;
       setSelected(nextMatch);
       setDraftRows(nextMatch?.rows ?? []);
+      setDeletedDraftIds([]);
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "对局读取失败。");
     } finally {
@@ -638,6 +641,30 @@ function AdminPanel() {
           : row
       )),
     );
+  }
+
+  function removeRows(setter: (updater: (rows: EditableRow[]) => EditableRow[]) => void, id: number, trackDeleted = false) {
+    if (trackDeleted && id > 0) {
+      setDeletedDraftIds((ids) => [...new Set([...ids, id])]);
+    }
+    setter((rows) => rows.filter((row) => row.id !== id));
+  }
+
+  function addDraftRow() {
+    const template = draftRows[0] || selected?.rows[0];
+    const nextId = Math.min(0, ...draftRows.map((row) => row.id)) - 1;
+    setDraftRows((rows) => [
+      ...rows,
+      {
+        id: nextId,
+        matchId: selected?.matchId || selectedMatchId,
+        date: template?.date || selectedDate,
+        playerName: "",
+        faction: "鹅",
+        role: "",
+        isWin: false,
+      },
+    ]);
   }
 
   async function recognizeUploads() {
@@ -708,7 +735,7 @@ function AdminPanel() {
       const response = await fetch("/api/admin/matches", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId: selected.matchId, rows: draftRows }),
+        body: JSON.stringify({ matchId: selected.matchId, rows: draftRows, deletedIds: deletedDraftIds }),
       });
       const body = await response.json();
       if (!response.ok) {
@@ -718,6 +745,7 @@ function AdminPanel() {
         const nextMatch = body.match as AdminMatch;
         setSelected(nextMatch);
         setDraftRows(nextMatch.rows);
+        setDeletedDraftIds([]);
       }
       setStatus(`${selected.matchId} 已提交。`);
       await loadSummaries(selectedDate);
@@ -834,7 +862,11 @@ function AdminPanel() {
           </div>
         ) : null}
         {pendingRows.length ? (
-          <EditableRows rows={pendingRows} onChange={(id, field, value) => updateRows(setPendingRows, id, field, value)} />
+          <EditableRows
+            rows={pendingRows}
+            onChange={(id, field, value) => updateRows(setPendingRows, id, field, value)}
+            onRemove={(id) => removeRows(setPendingRows, id)}
+          />
         ) : (
           <p className="emptyState">上传截图并识别后，会在这里显示可编辑预览表格。</p>
         )}
@@ -887,6 +919,9 @@ function AdminPanel() {
                 <strong>{selected.matchId}</strong>
               </div>
               <div className="actionGroup">
+                <button className="ghostButton" type="button" onClick={addDraftRow} disabled={saving}>
+                  新增行
+                </button>
                 <button className="ghostButton" type="button" onClick={() => applyMapping("match")} disabled={saving}>
                   映射本局
                 </button>
@@ -902,7 +937,11 @@ function AdminPanel() {
             ) : (
               <p className="emptyState screenshotEmpty">这局没有存放截图。</p>
             )}
-            <EditableRows rows={draftRows} onChange={(id, field, value) => updateRows(setDraftRows, id, field, value)} />
+            <EditableRows
+              rows={draftRows}
+              onChange={(id, field, value) => updateRows(setDraftRows, id, field, value)}
+              onRemove={(id) => removeRows(setDraftRows, id, true)}
+            />
           </div>
         ) : (
           <p className="emptyState">先选择日期，再选择对局，系统才会加载该局明细。</p>
@@ -915,9 +954,11 @@ function AdminPanel() {
 function EditableRows({
   rows,
   onChange,
+  onRemove,
 }: {
   rows: EditableRow[];
   onChange: (id: number, field: keyof EditableRow, value: string | boolean) => void;
+  onRemove?: (id: number) => void;
 }) {
   return (
     <div className="adminRows">
@@ -948,6 +989,11 @@ function EditableRows({
             <span>胜利</span>
             <input type="checkbox" checked={row.isWin} onChange={(event) => onChange(row.id, "isWin", event.target.checked)} />
           </label>
+          {onRemove ? (
+            <button className="dangerButton" type="button" onClick={() => onRemove(row.id)}>
+              删除
+            </button>
+          ) : null}
         </div>
       ))}
     </div>

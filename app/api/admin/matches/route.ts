@@ -116,11 +116,26 @@ async function loadMatches(options: { matchId?: string; date?: string }) {
   };
 }
 
-async function persistRows(rows: EditableRecord[]) {
-  return executeTurso(rows.map((row) => ({
-    sql: "update match_records set date = ?, player_name = ?, faction = ?, role = ?, is_win = ? where id = ? and match_id = ?",
-    args: [row.date, row.playerName, row.faction, row.role, row.isWin ? 1 : 0, row.id, row.matchId],
-  })));
+async function persistRows(rows: EditableRecord[], deletedIds: number[] = []) {
+  const statements = [
+    ...deletedIds.map((id) => ({
+      sql: "delete from match_records where id = ?",
+      args: [id],
+    })),
+    ...rows.map((row) => (
+      row.id > 0
+        ? {
+          sql: "update match_records set date = ?, player_name = ?, faction = ?, role = ?, is_win = ? where id = ? and match_id = ?",
+          args: [row.date, row.playerName, row.faction, row.role, row.isWin ? 1 : 0, row.id, row.matchId],
+        }
+        : {
+          sql: "insert into match_records (match_id, date, player_name, faction, role, is_win) values (?, ?, ?, ?, ?, ?)",
+          args: [row.matchId, row.date, row.playerName, row.faction, row.role, row.isWin ? 1 : 0],
+        }
+    )),
+  ];
+
+  return executeTurso(statements);
 }
 
 export async function GET(request: Request) {
@@ -157,15 +172,18 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const body = await request.json().catch(() => null) as { matchId?: unknown; rows?: unknown } | null;
+  const body = await request.json().catch(() => null) as { matchId?: unknown; rows?: unknown; deletedIds?: unknown } | null;
   const matchId = parseText(body?.matchId);
   const rows = sanitizeEditableRows(body?.rows, matchId);
+  const deletedIds = Array.isArray(body?.deletedIds)
+    ? body.deletedIds.map((id) => parseNumber(id)).filter((id) => id > 0)
+    : [];
 
-  if (!matchId || !rows?.length || rows.some((row) => row.id <= 0)) {
+  if (!matchId || (!rows?.length && !deletedIds.length)) {
     return NextResponse.json({ error: "提交数据不完整。" }, { status: 400 });
   }
 
-  const { error } = await persistRows(rows);
+  const { error } = await persistRows(rows ?? [], deletedIds);
 
   if (error) {
     return NextResponse.json({ error }, { status: 500 });
