@@ -409,6 +409,10 @@ small {
   grid-template-columns: minmax(220px, 420px);
 }
 
+.filters.twoControls {
+  grid-template-columns: minmax(180px, 260px) minmax(260px, 1fr);
+}
+
 .filters label,
 .playerSelect {
   display: grid;
@@ -425,6 +429,7 @@ small {
 
 .filters select,
 .playerSelect select,
+.playerSelect input,
 .joinForm input,
 .joinForm select,
 .adminRow input,
@@ -442,6 +447,7 @@ small {
 
 .filters select:hover,
 .playerSelect select:hover,
+.playerSelect input:hover,
 .joinForm input:hover,
 .joinForm select:hover,
 .adminRow input:hover,
@@ -743,6 +749,14 @@ small {
   object-fit: contain;
 }
 
+.matchScreenshot figcaption {
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .screenshotEmpty {
   margin-bottom: 14px;
 }
@@ -808,6 +822,12 @@ small {
 .databasePanel {
   display: grid;
   gap: 14px;
+}
+
+.previewImages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
 }
 
 .adminDatabase {
@@ -997,6 +1017,7 @@ small {
   .statGrid,
   .filters,
   .filters.single,
+  .filters.twoControls,
   .playerMetrics {
     grid-template-columns: 1fr;
   }

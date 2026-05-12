@@ -23,6 +23,14 @@ type TursoResponse = {
   }>;
 };
 
+type BlobArg = {
+  blobBase64: string;
+};
+
+export function tursoBlob(base64: string): BlobArg {
+  return { blobBase64: base64 };
+}
+
 export function getTursoConfig() {
   const url = process.env.TURSO_DATABASE_URL;
   const token = process.env.TURSO_AUTH_TOKEN;
@@ -45,6 +53,10 @@ export function getTursoConfig() {
 function tursoArg(value: unknown) {
   if (value == null) {
     return { type: "null" };
+  }
+
+  if (typeof value === "object" && value !== null && "blobBase64" in value) {
+    return { type: "blob", value: String((value as BlobArg).blobBase64) };
   }
 
   if (typeof value === "boolean") {

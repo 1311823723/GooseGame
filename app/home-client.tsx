@@ -26,6 +26,16 @@ type AdminMatch = {
   rows: EditableRow[];
 };
 
+type MatchSummary = Pick<AdminMatch, "matchId" | "date" | "players"> & {
+  hasImage: boolean;
+};
+
+type PendingImage = {
+  matchId: string;
+  dataUrl: string;
+  fileName: string;
+};
+
 const navItems: { id: View; label: string }[] = [
   { id: "dashboard", label: "数据大厅" },
   { id: "attendance", label: "发车" },
@@ -463,45 +473,112 @@ function MatchesPanel({ matches }: { matches: ReturnType<typeof buildMatchCards>
 }
 
 function AdminPanel() {
-  const [matches, setMatches] = useState<AdminMatch[]>([]);
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [recognitionDate, setRecognitionDate] = useState(today);
+  const [pendingRows, setPendingRows] = useState<EditableRow[]>([]);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [recognizing, setRecognizing] = useState(false);
+  const [ingesting, setIngesting] = useState(false);
+  const [recognitionErrors, setRecognitionErrors] = useState<string[]>([]);
+
+  const [dates, setDates] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [summaries, setSummaries] = useState<MatchSummary[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState("");
+  const [selected, setSelected] = useState<AdminMatch | null>(null);
   const [draftRows, setDraftRows] = useState<EditableRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingDates, setLoadingDates] = useState(true);
+  const [loadingSummaries, setLoadingSummaries] = useState(false);
+  const [loadingMatch, setLoadingMatch] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const selected = matches.find((match) => match.matchId === selectedMatchId) || matches[0];
 
-  async function loadDatabaseMatches() {
-    setLoading(true);
+  async function loadDates() {
+    setLoadingDates(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/matches", { cache: "no-store" });
+      const response = await fetch("/api/admin/matches?mode=dates", { cache: "no-store" });
       const body = await response.json();
       if (!response.ok) {
-        throw new Error(body.error || "数据库读取失败。");
+        throw new Error(body.error || "日期读取失败。");
       }
-      const nextMatches = body.matches as AdminMatch[];
-      setMatches(nextMatches);
-      setSelectedMatchId((current) => current || nextMatches[0]?.matchId || "");
-      setStatus(`已加载 ${nextMatches.length} 场对局。`);
+      const nextDates = body.dates as string[];
+      setDates(nextDates);
+      setSelectedDate((current) => current || nextDates[0] || "");
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "数据库读取失败。");
+      setError(fetchError instanceof Error ? fetchError.message : "日期读取失败。");
     } finally {
-      setLoading(false);
+      setLoadingDates(false);
+    }
+  }
+
+  async function loadSummaries(date: string) {
+    if (!date) {
+      setSummaries([]);
+      setSelectedMatchId("");
+      setSelected(null);
+      return;
+    }
+    setLoadingSummaries(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/matches?mode=summaries&date=${encodeURIComponent(date)}`, { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "对局列表读取失败。");
+      }
+      const nextSummaries = body.matches as MatchSummary[];
+      setSummaries(nextSummaries);
+      setSelectedMatchId("");
+      setSelected(null);
+      setDraftRows([]);
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "对局列表读取失败。");
+    } finally {
+      setLoadingSummaries(false);
+    }
+  }
+
+  async function loadMatch(matchId: string) {
+    if (!matchId) {
+      setSelected(null);
+      setDraftRows([]);
+      return;
+    }
+    setLoadingMatch(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/matches?matchId=${encodeURIComponent(matchId)}`, { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "对局读取失败。");
+      }
+      const nextMatch = body.match as AdminMatch | null;
+      setSelected(nextMatch);
+      setDraftRows(nextMatch?.rows ?? []);
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "对局读取失败。");
+    } finally {
+      setLoadingMatch(false);
     }
   }
 
   useEffect(() => {
-    void loadDatabaseMatches();
+    void loadDates();
   }, []);
 
   useEffect(() => {
-    setDraftRows(selected?.rows ?? []);
-  }, [selected?.matchId]);
+    void loadSummaries(selectedDate);
+  }, [selectedDate]);
 
-  function updateDraftRow(id: number, field: keyof EditableRow, value: string | boolean) {
-    setDraftRows((rows) =>
+  useEffect(() => {
+    void loadMatch(selectedMatchId);
+  }, [selectedMatchId]);
+
+  function updateRows(setter: (updater: (rows: EditableRow[]) => EditableRow[]) => void, id: number, field: keyof EditableRow, value: string | boolean) {
+    setter((rows) =>
       rows.map((row) => (
         row.id === id
           ? { ...row, [field]: field === "isWin" ? Boolean(value) : value }
@@ -510,12 +587,62 @@ function AdminPanel() {
     );
   }
 
-  function replaceMatches(nextMatches: AdminMatch[]) {
-    setMatches((current) => {
-      const byId = new Map(current.map((match) => [match.matchId, match]));
-      nextMatches.forEach((match) => byId.set(match.matchId, match));
-      return Array.from(byId.values()).sort((a, b) => b.matchId.localeCompare(a.matchId));
-    });
+  async function recognizeUploads() {
+    if (!uploadFiles.length) {
+      setError("请先上传至少一张截图。");
+      return;
+    }
+    setRecognizing(true);
+    setError("");
+    setStatus("");
+    setRecognitionErrors([]);
+    const formData = new FormData();
+    formData.set("date", recognitionDate);
+    uploadFiles.forEach((file) => formData.append("images", file));
+    try {
+      const response = await fetch("/api/admin/recognize", { method: "POST", body: formData });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "识别失败。");
+      }
+      setPendingRows(body.rows as EditableRow[]);
+      setPendingImages(body.images as PendingImage[]);
+      setRecognitionErrors(body.errors ?? []);
+      setStatus(`识别完成，得到 ${(body.rows as EditableRow[]).length} 条预览记录。请检查后再确认入库。`);
+    } catch (recognizeError) {
+      setError(recognizeError instanceof Error ? recognizeError.message : "识别失败。");
+    } finally {
+      setRecognizing(false);
+    }
+  }
+
+  async function confirmIngest() {
+    if (!pendingRows.length) {
+      setError("当前没有可入库的预览数据。");
+      return;
+    }
+    setIngesting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: pendingRows, images: pendingImages, applyMapping: true }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "入库失败。");
+      }
+      setStatus(`已写入 ${body.insertedRows ?? 0} 条记录，保存 ${body.insertedImages ?? 0} 张截图。`);
+      setPendingRows([]);
+      setPendingImages([]);
+      setUploadFiles([]);
+      await loadDates();
+    } catch (ingestError) {
+      setError(ingestError instanceof Error ? ingestError.message : "入库失败。");
+    } finally {
+      setIngesting(false);
+    }
   }
 
   async function saveSelectedMatch() {
@@ -535,9 +662,12 @@ function AdminPanel() {
         throw new Error(body.error || "提交失败。");
       }
       if (body.match) {
-        replaceMatches([body.match as AdminMatch]);
+        const nextMatch = body.match as AdminMatch;
+        setSelected(nextMatch);
+        setDraftRows(nextMatch.rows);
       }
       setStatus(`${selected.matchId} 已提交。`);
+      await loadSummaries(selectedDate);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "提交失败。");
     } finally {
@@ -545,26 +675,35 @@ function AdminPanel() {
     }
   }
 
-  async function applyMapping(matchId?: string) {
+  async function applyMapping(scope: "date" | "match") {
+    const matchId = scope === "match" ? selected?.matchId : "";
+    if (scope === "match" && !matchId) {
+      setError("请先选择对局。");
+      return;
+    }
+    if (scope === "date" && !selectedDate) {
+      setError("请先选择日期。");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       const response = await fetch("/api/admin/matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "apply-mapping", matchId }),
+        body: JSON.stringify({ action: "apply-mapping", matchId, date: selectedDate }),
       });
       const body = await response.json();
       if (!response.ok) {
         throw new Error(body.error || "映射失败。");
       }
-      const nextMatches = body.matches as AdminMatch[];
-      if (matchId) {
-        replaceMatches(nextMatches);
-      } else {
-        setMatches(nextMatches);
+      if (scope === "match" && body.match) {
+        const nextMatch = body.match as AdminMatch;
+        setSelected(nextMatch);
+        setDraftRows(nextMatch.rows);
       }
-      setStatus(matchId ? `${matchId} 已按映射表修正。` : `已按映射表修正 ${body.changedRows ?? 0} 行。`);
+      setStatus(scope === "match" ? `${matchId} 已按映射表修正。` : `${selectedDate} 已按映射表修正 ${body.changedRows ?? 0} 行。`);
+      await loadSummaries(selectedDate);
     } catch (mappingError) {
       setError(mappingError instanceof Error ? mappingError.message : "映射失败。");
     } finally {
@@ -580,128 +719,185 @@ function AdminPanel() {
             <p className="kicker">截图识别</p>
             <h2>战绩入库</h2>
           </div>
-          <span className="pill">DashScope</span>
+          <span className="pill">二级确认</span>
         </div>
-        <label className="dropZone">
-          <input type="file" accept="image/png,image/jpeg" multiple />
-          <span>上传结算截图</span>
-          <small>支持 PNG / JPG，多张截图可一次选择</small>
+        <label className="playerSelect" htmlFor="recognition-date">
+          <span>对局日期</span>
+          <input id="recognition-date" type="date" value={recognitionDate} onChange={(event) => setRecognitionDate(event.target.value)} />
         </label>
-        <button className="primaryButton" type="button">开始识别</button>
+        <label className="dropZone">
+          <input
+            type="file"
+            accept="image/png,image/jpeg"
+            multiple
+            onChange={(event) => setUploadFiles(Array.from(event.target.files ?? []))}
+          />
+          <span>{uploadFiles.length ? `已选择 ${uploadFiles.length} 张截图` : "上传结算截图"}</span>
+          <small>识别后先进入预览表格，确认后才会落库</small>
+        </label>
+        <button className="primaryButton" type="button" onClick={recognizeUploads} disabled={recognizing || ingesting}>
+          {recognizing ? "识别中..." : "开始识别"}
+        </button>
       </div>
 
       <div className="panel">
         <div className="panelHead">
           <div>
-            <p className="kicker">免费部署边界</p>
-            <h2>Vercel Ready</h2>
+            <p className="kicker">入库流程</p>
+            <h2>Preview First</h2>
           </div>
         </div>
         <ul className="deployList">
-          <li>页面和轻量 API 放 Vercel Hobby。</li>
-          <li>战绩数据继续放 Turso 免费层。</li>
-          <li>截图建议入 Turso blob/base64 或对象存储。</li>
-          <li>DashScope 识别继续使用你自己的 API Key。</li>
+          <li>截图识别只生成预览数据，不会直接写库。</li>
+          <li>预览表格可修改玩家、阵营、职业和胜负。</li>
+          <li>确认入库时会同时保存对局记录和截图。</li>
+          <li>入库前默认再跑一次映射表修正。</li>
         </ul>
       </div>
 
       <div className="panel wide databasePanel">
         <div className="panelHead">
           <div>
+            <p className="kicker">识别预览</p>
+            <h2>确认后落库</h2>
+          </div>
+          <button className="primaryButton compactButton" type="button" onClick={confirmIngest} disabled={ingesting || recognizing || !pendingRows.length}>
+            {ingesting ? "入库中..." : "确认入库"}
+          </button>
+        </div>
+        {recognitionErrors.length ? (
+          <div className="compactRows">
+            {recognitionErrors.map((message) => <p className="emptyState errorState" key={message}>{message}</p>)}
+          </div>
+        ) : null}
+        {pendingImages.length ? (
+          <div className="previewImages">
+            {pendingImages.map((image) => (
+              <figure className="matchScreenshot" key={image.matchId}>
+                <img src={image.dataUrl} alt={`${image.fileName} 识别预览`} />
+                <figcaption>{image.fileName}</figcaption>
+              </figure>
+            ))}
+          </div>
+        ) : null}
+        {pendingRows.length ? (
+          <EditableRows rows={pendingRows} onChange={(id, field, value) => updateRows(setPendingRows, id, field, value)} />
+        ) : (
+          <p className="emptyState">上传截图并识别后，会在这里显示可编辑预览表格。</p>
+        )}
+      </div>
+
+      <div className="panel wide databasePanel">
+        <div className="panelHead">
+          <div>
             <p className="kicker">数据库管理</p>
-            <h2>对局数据修正</h2>
+            <h2>按日期选择后修改</h2>
           </div>
           <div className="actionGroup">
-            <button className="ghostButton" type="button" onClick={loadDatabaseMatches} disabled={loading || saving}>
-              刷新
+            <button className="ghostButton" type="button" onClick={loadDates} disabled={loadingDates || saving}>
+              刷新日期
             </button>
-            <button className="ghostButton" type="button" onClick={() => applyMapping()} disabled={loading || saving || !matches.length}>
-              一键映射全部
+            <button className="ghostButton" type="button" onClick={() => applyMapping("date")} disabled={saving || !selectedDate}>
+              映射当前日期
             </button>
           </div>
         </div>
         {error ? <p className="emptyState errorState">{error}</p> : null}
         {status ? <p className="emptyState successState">{status}</p> : null}
-        {loading ? (
-          <p className="emptyState">正在读取数据库对局...</p>
-        ) : matches.length ? (
-          <div className="adminDatabase">
-            <div className="adminMatchList" aria-label="数据库对局列表">
-              {matches.map((match) => (
-                <button
-                  key={match.matchId}
-                  className={selected?.matchId === match.matchId ? "matchCard active" : "matchCard"}
-                  onClick={() => setSelectedMatchId(match.matchId)}
-                  type="button"
-                >
-                  <span>{match.date}</span>
-                  <strong>{match.matchId}</strong>
-                  <small>{match.players} 行 · {match.imageDataUrl ? "有截图" : "无截图"}</small>
-                </button>
+        <div className="filters twoControls">
+          <label htmlFor="admin-date-filter">
+            <span>选择日期</span>
+            <select id="admin-date-filter" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} disabled={loadingDates}>
+              <option value="">{loadingDates ? "读取中..." : "请选择日期"}</option>
+              {dates.map((date) => <option key={date} value={date}>{date}</option>)}
+            </select>
+          </label>
+          <label htmlFor="admin-match-filter">
+            <span>选择对局</span>
+            <select id="admin-match-filter" value={selectedMatchId} onChange={(event) => setSelectedMatchId(event.target.value)} disabled={!selectedDate || loadingSummaries}>
+              <option value="">{loadingSummaries ? "读取中..." : "请选择对局"}</option>
+              {summaries.map((match) => (
+                <option key={match.matchId} value={match.matchId}>
+                  {match.matchId} · {match.players} 行 · {match.hasImage ? "有截图" : "无截图"}
+                </option>
               ))}
-            </div>
-            {selected ? (
-              <div className="adminEditor">
-                <div className="editorToolbar">
-                  <div>
-                    <p className="miniTitle">当前对局</p>
-                    <strong>{selected.matchId}</strong>
-                  </div>
-                  <div className="actionGroup">
-                    <button className="ghostButton" type="button" onClick={() => applyMapping(selected.matchId)} disabled={saving}>
-                      映射本局
-                    </button>
-                    <button className="primaryButton compactButton" type="button" onClick={saveSelectedMatch} disabled={saving}>
-                      {saving ? "提交中..." : "提交修改"}
-                    </button>
-                  </div>
-                </div>
-                {selected.imageDataUrl ? (
-                  <figure className="matchScreenshot adminScreenshot">
-                    <img src={selected.imageDataUrl} alt={`${selected.matchId} 数据库截图`} />
-                  </figure>
-                ) : (
-                  <p className="emptyState screenshotEmpty">这局没有存放截图。</p>
-                )}
-                <div className="adminRows">
-                  {draftRows.map((row) => (
-                    <div className="adminRow" key={row.id}>
-                      <span className="rowId">#{row.id}</span>
-                      <label>
-                        <span>日期</span>
-                        <input value={row.date} onChange={(event) => updateDraftRow(row.id, "date", event.target.value)} />
-                      </label>
-                      <label>
-                        <span>玩家</span>
-                        <input value={row.playerName} onChange={(event) => updateDraftRow(row.id, "playerName", event.target.value)} />
-                      </label>
-                      <label>
-                        <span>阵营</span>
-                        <select value={row.faction} onChange={(event) => updateDraftRow(row.id, "faction", event.target.value as Faction)}>
-                          <option value="鹅">鹅</option>
-                          <option value="鸭">鸭</option>
-                          <option value="中立">中立</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>职业</span>
-                        <input value={row.role} onChange={(event) => updateDraftRow(row.id, "role", event.target.value)} />
-                      </label>
-                      <label className="winToggle">
-                        <span>胜利</span>
-                        <input type="checkbox" checked={row.isWin} onChange={(event) => updateDraftRow(row.id, "isWin", event.target.checked)} />
-                      </label>
-                    </div>
-                  ))}
-                </div>
+            </select>
+          </label>
+        </div>
+        {loadingMatch ? (
+          <p className="emptyState">正在加载所选对局...</p>
+        ) : selected ? (
+          <div className="adminEditor">
+            <div className="editorToolbar">
+              <div>
+                <p className="miniTitle">当前对局</p>
+                <strong>{selected.matchId}</strong>
               </div>
-            ) : null}
+              <div className="actionGroup">
+                <button className="ghostButton" type="button" onClick={() => applyMapping("match")} disabled={saving}>
+                  映射本局
+                </button>
+                <button className="primaryButton compactButton" type="button" onClick={saveSelectedMatch} disabled={saving}>
+                  {saving ? "提交中..." : "提交修改"}
+                </button>
+              </div>
+            </div>
+            {selected.imageDataUrl ? (
+              <figure className="matchScreenshot adminScreenshot">
+                <img src={selected.imageDataUrl} alt={`${selected.matchId} 数据库截图`} />
+              </figure>
+            ) : (
+              <p className="emptyState screenshotEmpty">这局没有存放截图。</p>
+            )}
+            <EditableRows rows={draftRows} onChange={(id, field, value) => updateRows(setDraftRows, id, field, value)} />
           </div>
         ) : (
-          <p className="emptyState">数据库里暂时没有对局数据。</p>
+          <p className="emptyState">先选择日期，再选择对局，系统才会加载该局明细。</p>
         )}
       </div>
     </section>
+  );
+}
+
+function EditableRows({
+  rows,
+  onChange,
+}: {
+  rows: EditableRow[];
+  onChange: (id: number, field: keyof EditableRow, value: string | boolean) => void;
+}) {
+  return (
+    <div className="adminRows">
+      {rows.map((row) => (
+        <div className="adminRow" key={row.id}>
+          <span className="rowId">{row.id > 0 ? `#${row.id}` : "新"}</span>
+          <label>
+            <span>日期</span>
+            <input value={row.date} onChange={(event) => onChange(row.id, "date", event.target.value)} />
+          </label>
+          <label>
+            <span>玩家</span>
+            <input value={row.playerName} onChange={(event) => onChange(row.id, "playerName", event.target.value)} />
+          </label>
+          <label>
+            <span>阵营</span>
+            <select value={row.faction} onChange={(event) => onChange(row.id, "faction", event.target.value as Faction)}>
+              <option value="鹅">鹅</option>
+              <option value="鸭">鸭</option>
+              <option value="中立">中立</option>
+            </select>
+          </label>
+          <label>
+            <span>职业</span>
+            <input value={row.role} onChange={(event) => onChange(row.id, "role", event.target.value)} />
+          </label>
+          <label className="winToggle">
+            <span>胜利</span>
+            <input type="checkbox" checked={row.isWin} onChange={(event) => onChange(row.id, "isWin", event.target.checked)} />
+          </label>
+        </div>
+      ))}
+    </div>
   );
 }
 

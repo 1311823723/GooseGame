@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import type { Faction, MatchRecord } from "@/lib/sample-data";
 import { applyRoleMappingToRecords } from "@/lib/role-mapping";
+import { EditableRecord, normalizeRecordRow, sanitizeEditableRows } from "@/lib/match-record-shared";
 import {
   blobToDataUrl,
   executeTurso,
-  parseBoolean,
   parseCell,
   parseNumber,
   parseText,
@@ -12,25 +11,6 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type EditableRecord = Pick<MatchRecord, "id" | "matchId" | "date" | "playerName" | "faction" | "role" | "isWin">;
-
-function parseFaction(value: unknown): Faction {
-  return value === "鹅" || value === "鸭" || value === "中立" ? value : "中立";
-}
-
-function normalizeRecord(row: Parameters<typeof parseCell>[0][]): EditableRecord {
-  const [id, matchId, date, playerName, faction, role, isWin] = row.map(parseCell);
-  return {
-    id: parseNumber(id),
-    matchId: parseText(matchId),
-    date: parseText(date),
-    playerName: parseText(playerName),
-    faction: parseFaction(faction),
-    role: parseText(role),
-    isWin: parseBoolean(isWin),
-  };
-}
 
 function groupMatches(records: EditableRecord[], imageByMatchId: Map<string, string>) {
   const grouped = new Map<string, EditableRecord[]>();
@@ -47,22 +27,75 @@ function groupMatches(records: EditableRecord[], imageByMatchId: Map<string, str
   }));
 }
 
-async function loadMatches(matchId?: string) {
-  const statements = [
+async function loadDates() {
+  const { results, error } = await executeTurso([
+    { sql: "select distinct date from match_records order by date desc" },
+  ]);
+
+  if (error) {
+    return { dates: [], error };
+  }
+
+  return {
+    dates: (results[0]?.rows ?? []).map((row) => parseText(parseCell(row[0]))).filter(Boolean),
+    error: null,
+  };
+}
+
+async function loadMatchSummaries(date: string) {
+  const { results, error } = await executeTurso([
     {
-      sql: matchId
-        ? "select id, match_id, date, player_name, faction, role, is_win from match_records where match_id = ? order by id"
-        : "select id, match_id, date, player_name, faction, role, is_win from match_records order by match_id desc, id",
-      args: matchId ? [matchId] : undefined,
+      sql: `
+        select
+          r.match_id,
+          min(r.date) as date,
+          count(*) as players,
+          case when i.match_id is null then 0 else 1 end as has_image
+        from match_records r
+        left join match_images i on i.match_id = r.match_id
+        where r.date = ?
+        group by r.match_id, i.match_id
+        order by r.match_id desc
+      `,
+      args: [date],
+    },
+  ]);
+
+  if (error) {
+    return { matches: [], error };
+  }
+
+  return {
+    matches: (results[0]?.rows ?? []).map((row) => {
+      const [matchId, matchDate, players, hasImage] = row.map(parseCell);
+      return {
+        matchId: parseText(matchId),
+        date: parseText(matchDate),
+        players: parseNumber(players),
+        hasImage: parseNumber(hasImage) > 0,
+      };
+    }),
+    error: null,
+  };
+}
+
+async function loadMatches(options: { matchId?: string; date?: string }) {
+  const where = options.matchId ? "where match_id = ?" : options.date ? "where date = ?" : "";
+  const args = options.matchId ? [options.matchId] : options.date ? [options.date] : undefined;
+  const { results, error } = await executeTurso([
+    {
+      sql: `select id, match_id, date, player_name, faction, role, is_win from match_records ${where} order by match_id desc, id`,
+      args,
     },
     {
-      sql: matchId
+      sql: options.matchId
         ? "select match_id, image from match_images where match_id = ?"
-        : "select match_id, image from match_images",
-      args: matchId ? [matchId] : undefined,
+        : options.date
+          ? "select match_id, image from match_images where match_id in (select distinct match_id from match_records where date = ?)"
+          : "select match_id, image from match_images",
+      args,
     },
-  ];
-  const { results, error } = await executeTurso(statements);
+  ]);
 
   if (error) {
     return { matches: [], error };
@@ -78,28 +111,9 @@ async function loadMatches(matchId?: string) {
   });
 
   return {
-    matches: groupMatches((results[0]?.rows ?? []).map(normalizeRecord), imageByMatchId),
+    matches: groupMatches((results[0]?.rows ?? []).map(normalizeRecordRow), imageByMatchId),
     error: null,
   };
-}
-
-function sanitizeRows(rows: unknown, fallbackMatchId: string): EditableRecord[] | null {
-  if (!Array.isArray(rows)) {
-    return null;
-  }
-
-  return rows.map((row) => {
-    const item = row as Partial<EditableRecord>;
-    return {
-      id: parseNumber(item.id),
-      matchId: parseText(item.matchId || fallbackMatchId),
-      date: parseText(item.date),
-      playerName: parseText(item.playerName),
-      faction: parseFaction(item.faction),
-      role: parseText(item.role),
-      isWin: parseBoolean(item.isWin),
-    };
-  }).filter((row) => row.id > 0 && row.matchId === fallbackMatchId && row.date && row.playerName && row.role);
 }
 
 async function persistRows(rows: EditableRecord[]) {
@@ -109,22 +123,45 @@ async function persistRows(rows: EditableRecord[]) {
   })));
 }
 
-export async function GET() {
-  const { matches, error } = await loadMatches();
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const mode = url.searchParams.get("mode");
+  const date = url.searchParams.get("date") ?? "";
+  const matchId = url.searchParams.get("matchId") ?? "";
 
-  if (error) {
-    return NextResponse.json({ matches: [], error }, { status: 500 });
+  if (mode === "dates") {
+    const { dates, error } = await loadDates();
+    return error
+      ? NextResponse.json({ dates: [], error }, { status: 500 })
+      : NextResponse.json({ dates });
   }
 
-  return NextResponse.json({ matches });
+  if (mode === "summaries") {
+    if (!date) {
+      return NextResponse.json({ matches: [], error: "请先选择日期。" }, { status: 400 });
+    }
+    const { matches, error } = await loadMatchSummaries(date);
+    return error
+      ? NextResponse.json({ matches: [], error }, { status: 500 })
+      : NextResponse.json({ matches });
+  }
+
+  if (!matchId) {
+    return NextResponse.json({ matches: [], error: "请先选择对局。" }, { status: 400 });
+  }
+
+  const { matches, error } = await loadMatches({ matchId });
+  return error
+    ? NextResponse.json({ matches: [], error }, { status: 500 })
+    : NextResponse.json({ match: matches[0] ?? null });
 }
 
 export async function PUT(request: Request) {
   const body = await request.json().catch(() => null) as { matchId?: unknown; rows?: unknown } | null;
   const matchId = parseText(body?.matchId);
-  const rows = sanitizeRows(body?.rows, matchId);
+  const rows = sanitizeEditableRows(body?.rows, matchId);
 
-  if (!matchId || !rows?.length) {
+  if (!matchId || !rows?.length || rows.some((row) => row.id <= 0)) {
     return NextResponse.json({ error: "提交数据不完整。" }, { status: 400 });
   }
 
@@ -134,20 +171,25 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error }, { status: 500 });
   }
 
-  const reloaded = await loadMatches(matchId);
+  const reloaded = await loadMatches({ matchId });
   return NextResponse.json({ match: reloaded.matches[0] ?? null });
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { action?: unknown; matchId?: unknown } | null;
+  const body = await request.json().catch(() => null) as { action?: unknown; matchId?: unknown; date?: unknown } | null;
   const action = parseText(body?.action);
   const matchId = parseText(body?.matchId);
+  const date = parseText(body?.date);
 
   if (action !== "apply-mapping") {
     return NextResponse.json({ error: "未知操作。" }, { status: 400 });
   }
 
-  const loaded = await loadMatches(matchId || undefined);
+  if (!matchId && !date) {
+    return NextResponse.json({ error: "请先选择日期或对局。" }, { status: 400 });
+  }
+
+  const loaded = await loadMatches(matchId ? { matchId } : { date });
   if (loaded.error) {
     return NextResponse.json({ error: loaded.error }, { status: 500 });
   }
@@ -160,9 +202,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error }, { status: 500 });
   }
 
-  const reloaded = await loadMatches(matchId || undefined);
+  const reloaded = await loadMatches(matchId ? { matchId } : { date });
   return NextResponse.json({
     matches: reloaded.matches,
+    match: matchId ? reloaded.matches[0] ?? null : undefined,
     changedRows: mapped.length,
   });
 }
