@@ -54,7 +54,7 @@ with tab1:
                 st.rerun()
 
     st.markdown(
-        '<p style="font-size:0.8rem;opacity:0.55;margin-top:0.5rem;text-align:center;">'
+        '<p class="gg-mini-note">'
         '想改时间？用同一个名字再次提交会自动覆盖</p>',
         unsafe_allow_html=True,
     )

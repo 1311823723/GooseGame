@@ -11,12 +11,12 @@ FACTION_COLORS = {
 }
 
 BRAND_COLORS = {
-    "primary": "#047857",
-    "primary_light": "#10B981",
-    "accent": "#0284C7",
-    "warning": "#D97706",
-    "danger": "#DC2626",
-    "success": "#059669",
+    "primary": "#118AB2",
+    "primary_light": "#14B88A",
+    "accent": "#536DFE",
+    "warning": "#F0A734",
+    "danger": "#E94D6A",
+    "success": "#14B88A",
 }
 
 
@@ -30,19 +30,22 @@ def apply_base_styles():
 <style>
 /* --- Base tokens --- */
 :root {
-  --gg-bg: #F6F8FB;
-  --gg-surface: rgba(255, 255, 255, 0.96);
-  --gg-surface-soft: #F9FAFB;
-  --gg-ink: #111827;
-  --gg-muted: #64748B;
-  --gg-subtle: #94A3B8;
-  --gg-line: rgba(15, 23, 42, 0.10);
-  --gg-line-strong: rgba(15, 23, 42, 0.16);
-  --gg-primary: #047857;
-  --gg-primary-soft: rgba(4, 120, 87, 0.10);
-  --gg-accent: #0284C7;
+  --gg-bg: #F5F8FB;
+  --gg-surface: rgba(255, 255, 255, 0.90);
+  --gg-surface-soft: #F7FBFD;
+  --gg-ink: #102027;
+  --gg-muted: #687986;
+  --gg-subtle: #8A99A4;
+  --gg-line: rgba(16, 32, 39, 0.10);
+  --gg-line-strong: rgba(16, 32, 39, 0.16);
+  --gg-primary: #118AB2;
+  --gg-primary-soft: rgba(17, 138, 178, 0.10);
+  --gg-accent: #536DFE;
+  --gg-green: #14B88A;
+  --gg-rose: #E94D6A;
+  --gg-amber: #F0A734;
   --gg-radius: 8px;
-  --gg-shadow: 0 14px 42px rgba(15, 23, 42, 0.08);
+  --gg-shadow: 0 18px 48px rgba(31, 50, 61, 0.10);
 }
 
 html, body, [class*="css"] {
@@ -51,6 +54,8 @@ html, body, [class*="css"] {
   font-size: 16px;
   color: var(--gg-ink);
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   text-rendering: optimizeLegibility;
 }
 
@@ -59,9 +64,23 @@ html { background: var(--gg-bg); }
 body,
 [data-testid="stAppViewContainer"] {
   background:
-    radial-gradient(circle at 12% -10%, rgba(4, 120, 87, 0.10), transparent 30%),
-    radial-gradient(circle at 90% 0%, rgba(2, 132, 199, 0.09), transparent 28%),
-    linear-gradient(180deg, #FBFCFE 0%, #F6F8FB 42%, #F4F7FA 100%);
+    linear-gradient(135deg, rgba(17, 138, 178, 0.10), transparent 34%),
+    linear-gradient(225deg, rgba(240, 167, 52, 0.08), transparent 28%),
+    linear-gradient(180deg, #FBFDFF 0%, var(--gg-bg) 42%, #EDF4F7 100%);
+}
+
+[data-testid="stAppViewContainer"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(16, 32, 39, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 32, 39, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0.72), transparent 72%);
+  mask-image: linear-gradient(180deg, rgba(0,0,0,0.72), transparent 72%);
 }
 
 #MainMenu { visibility: hidden; }
@@ -72,11 +91,25 @@ header { visibility: hidden; }
   padding-top: 1.25rem;
   padding-bottom: 2.25rem;
   max-width: 1100px;
+  position: relative;
+  z-index: 1;
 }
 
 section[data-testid="stSidebar"] {
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.92);
   border-right: 1px solid var(--gg-line);
+}
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] {
+  padding-top: 0.8rem;
+}
+section[data-testid="stSidebar"] a {
+  border-radius: 8px;
+  margin: 0.15rem 0.55rem;
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+}
+section[data-testid="stSidebar"] a:hover {
+  background: rgba(17, 138, 178, 0.08);
+  transform: translateX(1px);
 }
 
 ::selection { background: rgba(4, 120, 87, 0.16); color: var(--gg-ink); }
@@ -86,10 +119,14 @@ section[data-testid="stSidebar"] {
 
 /* --- Hero and cards --- */
 .gg-card {
+  position: relative;
+  overflow: hidden;
   border: 1px solid var(--gg-line);
   border-radius: var(--gg-radius);
   padding: 22px 24px;
-  background: var(--gg-surface);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.96), rgba(247,252,255,0.84)),
+    linear-gradient(120deg, rgba(20,184,138,0.10), rgba(83,109,254,0.08), rgba(240,167,52,0.09));
   box-shadow: var(--gg-shadow);
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
@@ -122,9 +159,9 @@ section[data-testid="stSidebar"] {
 }
 
 .gg-pill {
-  background: var(--gg-primary-soft);
-  border: 1px solid rgba(4, 120, 87, 0.18);
-  color: #047857;
+  background: linear-gradient(135deg, rgba(20, 184, 138, 0.12), rgba(17, 138, 178, 0.10));
+  border: 1px solid rgba(17, 138, 178, 0.22);
+  color: #0B6F8E;
 }
 
 .gg-pill-goose   { background: rgba(5, 150, 105, 0.10); border: 1px solid rgba(5, 150, 105, 0.22); color: #047857; }
@@ -138,7 +175,11 @@ section[data-testid="stSidebar"] {
   font-weight: 850;
   line-height: 1.14;
   margin: 0.6rem 0 0 0;
+  background: linear-gradient(110deg, var(--gg-ink), #174C5C 46%, var(--gg-accent) 76%, var(--gg-rose));
+  background-clip: text;
+  -webkit-background-clip: text;
   color: var(--gg-ink);
+  -webkit-text-fill-color: transparent;
   letter-spacing: 0;
 }
 
@@ -167,7 +208,9 @@ section[data-testid="stSidebar"] {
 /* --- Metrics and rows --- */
 .gg-metric-card {
   min-height: 108px;
-  background: linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 100%);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.70)),
+    rgba(255,255,255,0.86);
   border: 1px solid var(--gg-line);
   border-radius: var(--gg-radius);
   padding: 17px 16px;
@@ -235,6 +278,61 @@ section[data-testid="stSidebar"] {
 }
 .gg-row-muted { color: var(--gg-muted); font-size: 0.86rem; }
 
+.gg-status-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--gg-line);
+  border-radius: var(--gg-radius);
+  padding: 11px 14px;
+  margin: 0.7rem 0;
+  background: rgba(255,255,255,0.82);
+  box-shadow: 0 8px 24px rgba(31, 50, 61, 0.06);
+}
+.gg-status-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.gg-status-main {
+  font-size: 0.9rem;
+  font-weight: 850;
+  color: var(--gg-ink);
+}
+.gg-status-sub {
+  margin-left: auto;
+  color: var(--gg-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-align: right;
+}
+
+.gg-bar-row {
+  display: grid;
+  grid-template-columns: minmax(5rem, 0.8fr) minmax(84px, 1fr) 3.4rem auto;
+  gap: 0.7rem;
+  align-items: center;
+}
+.gg-bar-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(16, 32, 39, 0.08);
+}
+.gg-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--gg-primary), var(--gg-green));
+}
+.gg-mini-note {
+  margin: 0.5rem 0 0 0;
+  color: var(--gg-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  text-align: center;
+}
+
 /* --- Streamlit controls --- */
 .stTabs [data-baseweb="tab-list"] {
   gap: 0.35rem;
@@ -243,6 +341,7 @@ section[data-testid="stSidebar"] {
   border-radius: var(--gg-radius);
   padding: 4px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .stTabs [data-baseweb="tab"] {
   border-radius: 6px;
@@ -275,13 +374,13 @@ section[data-testid="stSidebar"] {
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
 }
 .stButton > button[kind="primary"] {
-  background: #111827 !important;
-  border-color: #111827 !important;
+  background: linear-gradient(135deg, #102027, #164353 58%, #1A6B72) !important;
+  border-color: #102027 !important;
   color: #FFFFFF !important;
 }
 .stButton > button[kind="primary"]:hover {
-  background: #047857 !important;
-  border-color: #047857 !important;
+  background: linear-gradient(135deg, #102027, #13576A 58%, #16817D) !important;
+  border-color: #13576A !important;
 }
 
 [data-testid="stForm"],
@@ -311,8 +410,13 @@ textarea:hover {
 
 [data-testid="stFileUploaderDropzone"] {
   border-radius: var(--gg-radius) !important;
-  border: 1px dashed rgba(4, 120, 87, 0.32) !important;
-  background: rgba(4, 120, 87, 0.04) !important;
+  border: 1px dashed rgba(17, 138, 178, 0.34) !important;
+  background: linear-gradient(135deg, rgba(17, 138, 178, 0.07), rgba(20, 184, 138, 0.06), rgba(240, 167, 52, 0.07)) !important;
+  transition: border-color 160ms ease, background 160ms ease !important;
+}
+[data-testid="stFileUploaderDropzone"]:hover {
+  border-color: rgba(17, 138, 178, 0.52) !important;
+  background: rgba(255,255,255,0.92) !important;
 }
 
 [data-testid="stDataFrame"] {
@@ -347,6 +451,10 @@ textarea:hover {
   border: 1px solid var(--gg-line);
 }
 
+[data-testid="stProgress"] > div > div > div > div {
+  background: linear-gradient(90deg, var(--gg-primary), var(--gg-green)) !important;
+}
+
 /* --- Light interaction details --- */
 @keyframes ggPulse {
   0%, 100% { opacity: 1; }
@@ -360,6 +468,11 @@ textarea:hover {
   background: #059669;
   animation: ggPulse 1.6s ease-in-out infinite;
   margin-right: 6px;
+}
+.gg-live-text {
+  color: #087857;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 .gg-shimmer {
   position: relative;
@@ -408,6 +521,22 @@ textarea:hover {
     width: 100%;
     margin-left: 0;
     text-align: left;
+  }
+  .gg-status-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .gg-status-sub {
+    width: 100%;
+    margin-left: 18px;
+    text-align: left;
+  }
+  .gg-bar-row {
+    grid-template-columns: 1fr auto;
+  }
+  .gg-bar-track {
+    grid-column: 1 / -1;
+    order: 3;
   }
   [data-testid="column"] {
     min-width: 0 !important;
@@ -488,7 +617,35 @@ def render_faction_badge(faction: str):
 def render_live_indicator(text: str = "实时"):
     st.markdown(
         f'<span class="gg-live-dot"></span>'
-        f'<span style="color:#86EFAC;font-size:0.8rem;font-weight:600;">{text}</span>',
+        f'<span class="gg-live-text">{text}</span>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_status_card(label: str, status: str, detail: str = "", color: str = "#14B88A"):
+    detail_html = f'<span class="gg-status-sub">{detail}</span>' if detail else ""
+    st.markdown(
+        f'<div class="gg-status-card">'
+        f'<span class="gg-status-dot" style="background:{color};"></span>'
+        f'<span class="gg-status-main">{label}：{status}</span>'
+        f'{detail_html}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_bar_row(label: str, rate: float, meta: str = "", color: str = "#118AB2"):
+    safe_rate = max(0.0, min(float(rate), 1.0))
+    meta_html = f'<span class="gg-row-muted">{meta}</span>' if meta else ""
+    st.markdown(
+        f'<div class="gg-list-card gg-bar-row">'
+        f'<span class="gg-list-main">{label}</span>'
+        f'<div class="gg-bar-track">'
+        f'<div class="gg-bar-fill" style="width:{safe_rate * 100:.1f}%;background:linear-gradient(90deg,{color},var(--gg-green));"></div>'
+        f'</div>'
+        f'<span style="font-weight:850;font-size:0.86rem;text-align:right;color:var(--gg-ink);">{safe_rate:.1%}</span>'
+        f'{meta_html}'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -496,10 +653,11 @@ def render_live_indicator(text: str = "实时"):
 def render_player_tag(name: str, faction: str | None = None):
     fc = FACTION_COLORS.get(faction, None) if faction else None
     bg = fc["bg"] if fc else "rgba(16,185,129,0.12)"
-    color = fc["hex"] if fc else "#6EE7B7"
+    color = fc["hex"] if fc else "#087857"
+    border = fc["border"] if fc else "rgba(20,184,138,0.22)"
     st.markdown(
         f'<span style="display:inline-block;margin:4px 6px;padding:5px 12px;'
-        f'background:{bg};color:{color};border-radius:8px;font-weight:600;'
+        f'background:{bg};color:{color};border:1px solid {border};border-radius:8px;font-weight:700;'
         f'font-size:0.9rem;">{name}</span>',
         unsafe_allow_html=True,
     )

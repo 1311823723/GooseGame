@@ -20,7 +20,7 @@ from db_utils import (
     fix_existing_records, insert_match_images, insert_match_records,
     update_match_record,
 )
-from ui_utils import apply_base_styles, render_page_card, render_section_title
+from ui_utils import apply_base_styles, render_page_card, render_section_title, render_status_card
 
 DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
@@ -60,14 +60,7 @@ render_page_card(
 api_ok = bool(dashscope_api_key)
 status_color = "#22C55E" if api_ok else "#F59E0B"
 status_text = "已配置" if api_ok else "未配置"
-st.markdown(
-    f'<div class="gg-card" style="padding:10px 18px;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">'
-    f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{status_color};"></span>'
-    f'<span style="font-weight:600;font-size:0.9rem;">DashScope API：{status_text}</span>'
-    f'<span style="opacity:0.55;font-size:0.82rem;">qwen3-vl-235b-a22b-thinking</span>'
-    f'</div>',
-    unsafe_allow_html=True,
-)
+render_status_card("DashScope API", status_text, "qwen3-vl-235b-a22b-thinking", status_color)
 
 with st.expander("识别前准备", expanded=False):
     st.markdown("1. 安装依赖：`pip install -r requirements.txt`")

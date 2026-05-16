@@ -57,6 +57,7 @@ body::before {
     linear-gradient(rgba(16, 32, 39, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(16, 32, 39, 0.035) 1px, transparent 1px);
   background-size: 44px 44px;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.78), transparent 72%);
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.78), transparent 72%);
   animation: gridDrift 18s linear infinite;
 }
@@ -96,7 +97,8 @@ h1 {
   background: linear-gradient(110deg, var(--ink), #174c5c 44%, var(--indigo) 72%, var(--rose));
   background-clip: text;
   -webkit-background-clip: text;
-  color: transparent;
+  color: var(--ink);
+  -webkit-text-fill-color: transparent;
   font-size: clamp(2.35rem, 6vw, 4.55rem);
   font-weight: 850;
   letter-spacing: 0;

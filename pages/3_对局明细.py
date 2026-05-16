@@ -5,7 +5,7 @@ from db_utils import fetch_match_image, fetch_match_records
 from ui_utils import (
     BRAND_COLORS, FACTION_COLORS,
     apply_base_styles, render_empty_state, render_page_card, render_record_row, render_section_divider,
-    render_section_title, render_stat_card,
+    render_section_title, render_stat_card, render_status_card,
 )
 
 
@@ -43,10 +43,7 @@ for mid in match_ids:
 
 dates = sorted(set(info["date"] for info in match_info.values()), reverse=True)
 
-st.markdown(
-    f'<p style="opacity:0.6;font-size:0.85rem;margin-bottom:0.25rem;">共 <strong>{len(match_ids)}</strong> 场对局</p>',
-    unsafe_allow_html=True,
-)
+render_status_card("对局总览", f"共 {len(match_ids)} 场对局", "先选日期，再选具体对局", BRAND_COLORS["accent"])
 selected_date = st.selectbox("选择日期", dates, label_visibility="collapsed")
 
 date_match_ids = [mid for mid in match_ids if match_info[mid]["date"] == selected_date]

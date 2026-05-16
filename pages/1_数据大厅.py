@@ -5,7 +5,7 @@ import streamlit as st
 from db_utils import fetch_match_records
 from ui_utils import (
     BRAND_COLORS, FACTION_COLORS,
-    apply_base_styles, render_empty_state, render_page_card, render_record_row, render_section_divider,
+    apply_base_styles, render_bar_row, render_empty_state, render_page_card, render_record_row, render_section_divider,
     render_section_title, render_stat_card,
 )
 
@@ -109,17 +109,11 @@ role_summary = role_summary.sort_values(by=["胜率", "出场总次数"], ascend
 top_roles = role_summary.head(10)
 for _, row in top_roles.iterrows():
     rate = row["胜率"]
-    bar_pct = rate * 100
-    st.markdown(
-        f'<div class="gg-list-card">'
-        f'<span class="gg-list-main" style="min-width:5rem;">{row["role"]}</span>'
-        f'<div style="flex:1;min-width:80px;height:8px;background:#E5E7EB;border-radius:999px;overflow:hidden;">'
-        f'<div style="height:100%;width:{bar_pct}%;background:#047857;border-radius:999px;"></div>'
-        f'</div>'
-        f'<span style="font-weight:800;font-size:0.86rem;min-width:3.2rem;text-align:right;color:#111827;">{rate:.1%}</span>'
-        f'<span class="gg-row-muted">({int(row["胜场数"])}/{int(row["出场总次数"])})</span>'
-        f'</div>',
-        unsafe_allow_html=True,
+    render_bar_row(
+        str(row["role"]),
+        float(rate),
+        f'({int(row["胜场数"])}/{int(row["出场总次数"])})',
+        BRAND_COLORS["primary"],
     )
 
 with st.expander("查看完整榜单", expanded=False):

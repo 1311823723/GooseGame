@@ -8,6 +8,7 @@ import {
   buildRoleSummary,
   factionMeta,
 } from "@/lib/stats";
+import { Badge, Button, Card, EmptyState, Field, SectionHeader } from "./ui-primitives";
 
 type View = "dashboard" | "attendance" | "matches" | "admin";
 
@@ -157,16 +158,10 @@ function StatusPanel({
 }) {
   return (
     <section className="grid two">
-      <div className="panel wide">
-        <div className="panelHead">
-          <div>
-            <p className="kicker">数据状态</p>
-            <h2>{title}</h2>
-          </div>
-          <span className="pill">Turso</span>
-        </div>
-        <p className="emptyState">{message}</p>
-      </div>
+      <Card className="wide">
+        <SectionHeader eyebrow="数据状态" title={title} action={<Badge>Turso</Badge>} />
+        <EmptyState>{message}</EmptyState>
+      </Card>
     </section>
   );
 }
@@ -208,17 +203,15 @@ function Dashboard({
 
   return (
     <section className="grid two">
-      <div className="panel wide filterPanel">
-        <div className="panelHead compact">
-          <div>
-            <p className="kicker">筛选器</p>
-            <h2>数据大厅查询</h2>
-          </div>
-          <span className="pill">{selectedDate === "全部" ? "全部数据" : selectedDate}</span>
-        </div>
+      <Card className="wide filterPanel">
+        <SectionHeader
+          eyebrow="筛选器"
+          title="数据大厅查询"
+          action={<Badge>{selectedDate === "全部" ? "全部数据" : selectedDate}</Badge>}
+          compact
+        />
         <div className="filters single">
-          <label htmlFor="dashboard-date-filter">
-            <span>选择日期</span>
+          <Field label="选择日期" htmlFor="dashboard-date-filter">
             <select
               id="dashboard-date-filter"
               value={selectedDate}
@@ -231,18 +224,16 @@ function Dashboard({
                 </option>
               ))}
             </select>
-          </label>
+          </Field>
         </div>
-      </div>
+      </Card>
 
-      <div className="panel">
-        <div className="panelHead">
-          <div>
-            <p className="kicker">阵营胜率</p>
-            <h2>{selectedDate === "全部" ? "全部日期" : selectedDate}</h2>
-          </div>
-          <span className="pill">实时数据</span>
-        </div>
+      <Card>
+        <SectionHeader
+          eyebrow="阵营胜率"
+          title={selectedDate === "全部" ? "全部日期" : selectedDate}
+          action={<Badge>实时数据</Badge>}
+        />
         <div className="factions">
           {factionSummary.length ? (
             factionSummary.map((item) => {
@@ -264,24 +255,19 @@ function Dashboard({
               );
             })
           ) : (
-            <p className="emptyState">这个日期还没有战绩数据。</p>
+            <EmptyState>这个日期还没有战绩数据。</EmptyState>
           )}
         </div>
-      </div>
+      </Card>
 
-      <div className="panel">
-        <div className="panelHead">
-          <div>
-            <p className="kicker">个人概览</p>
-            <h2>玩家池</h2>
-          </div>
-        </div>
+      <Card>
+        <SectionHeader eyebrow="个人概览" title="玩家池" />
         <div className="statGrid">
           <Metric label="玩家数" value={players.toString()} tone="cyan" />
           <Metric label="对局数" value={matchCount.toString()} tone="green" />
           <Metric label="胜者占比" value={formatPct(winRate)} tone="rose" />
         </div>
-      </div>
+      </Card>
 
       <div className="panel wide">
         <div className="panelHead">
@@ -816,9 +802,9 @@ function AdminPanel() {
           <span>{uploadFiles.length ? `已选择 ${uploadFiles.length} 张截图` : "上传结算截图"}</span>
           <small>识别后先进入预览表格，确认后才会落库</small>
         </label>
-        <button className="primaryButton" type="button" onClick={recognizeUploads} disabled={recognizing || ingesting}>
+        <Button variant="primary" onClick={recognizeUploads} disabled={recognizing || ingesting}>
           {recognizing ? "识别中..." : "开始识别"}
-        </button>
+        </Button>
       </div>
 
       <div className="panel">
@@ -842,13 +828,13 @@ function AdminPanel() {
             <p className="kicker">识别预览</p>
             <h2>确认后落库</h2>
           </div>
-          <button className="primaryButton compactButton" type="button" onClick={confirmIngest} disabled={ingesting || recognizing || !pendingRows.length}>
+          <Button variant="primary" compact onClick={confirmIngest} disabled={ingesting || recognizing || !pendingRows.length}>
             {ingesting ? "入库中..." : "确认入库"}
-          </button>
+          </Button>
         </div>
         {recognitionErrors.length ? (
           <div className="compactRows">
-            {recognitionErrors.map((message) => <p className="emptyState errorState" key={message}>{message}</p>)}
+            {recognitionErrors.map((message) => <EmptyState tone="error" key={message}>{message}</EmptyState>)}
           </div>
         ) : null}
         {pendingImages.length ? (
@@ -868,7 +854,7 @@ function AdminPanel() {
             onRemove={(id) => removeRows(setPendingRows, id)}
           />
         ) : (
-          <p className="emptyState">上传截图并识别后，会在这里显示可编辑预览表格。</p>
+          <EmptyState>上传截图并识别后，会在这里显示可编辑预览表格。</EmptyState>
         )}
       </div>
 
@@ -879,16 +865,16 @@ function AdminPanel() {
             <h2>按日期选择后修改</h2>
           </div>
           <div className="actionGroup">
-            <button className="ghostButton" type="button" onClick={loadDates} disabled={loadingDates || saving}>
+            <Button onClick={loadDates} disabled={loadingDates || saving}>
               刷新日期
-            </button>
-            <button className="ghostButton" type="button" onClick={() => applyMapping("date")} disabled={saving || !selectedDate}>
+            </Button>
+            <Button onClick={() => applyMapping("date")} disabled={saving || !selectedDate}>
               映射当前日期
-            </button>
+            </Button>
           </div>
         </div>
-        {error ? <p className="emptyState errorState">{error}</p> : null}
-        {status ? <p className="emptyState successState">{status}</p> : null}
+        {error ? <EmptyState tone="error">{error}</EmptyState> : null}
+        {status ? <EmptyState tone="success">{status}</EmptyState> : null}
         <div className="filters twoControls">
           <label htmlFor="admin-date-filter">
             <span>选择日期</span>
@@ -919,15 +905,15 @@ function AdminPanel() {
                 <strong>{selected.matchId}</strong>
               </div>
               <div className="actionGroup">
-                <button className="ghostButton" type="button" onClick={addDraftRow} disabled={saving}>
+                <Button onClick={addDraftRow} disabled={saving}>
                   新增行
-                </button>
-                <button className="ghostButton" type="button" onClick={() => applyMapping("match")} disabled={saving}>
+                </Button>
+                <Button onClick={() => applyMapping("match")} disabled={saving}>
                   映射本局
-                </button>
-                <button className="primaryButton compactButton" type="button" onClick={saveSelectedMatch} disabled={saving}>
+                </Button>
+                <Button variant="primary" compact onClick={saveSelectedMatch} disabled={saving}>
                   {saving ? "提交中..." : "提交修改"}
-                </button>
+                </Button>
               </div>
             </div>
             {selected.imageDataUrl ? (
@@ -935,7 +921,7 @@ function AdminPanel() {
                 <img src={selected.imageDataUrl} alt={`${selected.matchId} 数据库截图`} />
               </figure>
             ) : (
-              <p className="emptyState screenshotEmpty">这局没有存放截图。</p>
+              <EmptyState>这局没有存放截图。</EmptyState>
             )}
             <EditableRows
               rows={draftRows}
@@ -944,7 +930,7 @@ function AdminPanel() {
             />
           </div>
         ) : (
-          <p className="emptyState">先选择日期，再选择对局，系统才会加载该局明细。</p>
+          <EmptyState>先选择日期，再选择对局，系统才会加载该局明细。</EmptyState>
         )}
       </div>
     </section>
