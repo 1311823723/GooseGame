@@ -102,10 +102,40 @@ section[data-testid="stSidebar"] {
 section[data-testid="stSidebar"] [data-testid="stSidebarNav"] {
   padding-top: 0.8rem;
 }
+.gg-sidebar-brand {
+  margin: 0.35rem 0.7rem 0.75rem 0.7rem;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid var(--gg-line);
+  border-radius: var(--gg-radius);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.92), rgba(247,252,255,0.84)),
+    linear-gradient(120deg, rgba(17,138,178,0.08), rgba(20,184,138,0.06));
+  box-shadow: 0 8px 26px rgba(31, 50, 61, 0.07);
+}
+.gg-sidebar-brand-main {
+  color: var(--gg-ink);
+  font-size: 0.96rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+.gg-sidebar-brand-sub {
+  margin-top: 0.18rem;
+  color: var(--gg-muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
 section[data-testid="stSidebar"] a {
   border-radius: 8px;
   margin: 0.15rem 0.55rem;
   transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+}
+section[data-testid="stSidebar"] a[aria-current="page"],
+section[data-testid="stSidebar"] a[data-testid="stSidebarNavLink"][aria-current="page"] {
+  background: rgba(17, 138, 178, 0.12);
+  border: 1px solid rgba(17, 138, 178, 0.18);
+  color: var(--gg-ink);
+  font-weight: 850;
 }
 section[data-testid="stSidebar"] a:hover {
   background: rgba(17, 138, 178, 0.08);
@@ -175,12 +205,17 @@ section[data-testid="stSidebar"] a:hover {
   font-weight: 850;
   line-height: 1.14;
   margin: 0.6rem 0 0 0;
-  background: linear-gradient(110deg, var(--gg-ink), #174C5C 46%, var(--gg-accent) 76%, var(--gg-rose));
-  background-clip: text;
-  -webkit-background-clip: text;
   color: var(--gg-ink);
-  -webkit-text-fill-color: transparent;
   letter-spacing: 0;
+}
+
+@supports (-webkit-background-clip: text) {
+  .gg-title {
+    background: linear-gradient(110deg, var(--gg-ink), #174C5C 46%, var(--gg-accent) 76%, var(--gg-rose));
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
 }
 
 .gg-sub {
@@ -571,6 +606,16 @@ def render_page_card(pill_text: str, title_text: str, subtitle_text: str, factio
     )
 
 
+def render_sidebar_brand():
+    st.markdown(
+        '<div class="gg-sidebar-brand">'
+        '<div class="gg-sidebar-brand-main">GooseGame</div>'
+        '<div class="gg-sidebar-brand-sub">发车与战绩中枢</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def render_section_title(text: str):
     st.markdown(f'<p class="gg-section-title">{text}</p>', unsafe_allow_html=True)
 
@@ -672,7 +717,7 @@ def render_record_row(
     muted: str = "",
 ):
     icon_html = f'<span style="font-size:1.25rem;line-height:1;">{icon}</span>' if icon else ""
-    badge_html = f'<span class="gg-pill" style="color:{color};border-color:{color}33;background:{color}14;">{badge}</span>' if badge else ""
+    badge_html = f'<span class="gg-pill" style="color:{color};border-color:{color};background:#FFFFFF;">{badge}</span>' if badge else ""
     muted_html = f'<span class="gg-list-meta">{muted}</span>' if muted else ""
     st.markdown(
         f'<div class="gg-list-card">'

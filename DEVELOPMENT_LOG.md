@@ -17,3 +17,12 @@
 - 验证命令：`python3 -m compileall app.py pages ui_utils.py attendance_utils.py db_utils.py`、`npm run lint`、`npm run build`、`npm run dev`、`.venv/bin/streamlit run app.py --server.headless true --server.port 8501`。
 - 验证结果：Python 编译、TypeScript lint、Next production build 通过；Next dev server 与 Streamlit dev server 均启动成功。浏览器截图验证和外部 curl 可达性检查因当前本地权限额度限制未完成。
 - 后续风险：Next 侧采用轻量 shadcn 风格 primitives，未引入 Tailwind/Radix 依赖；如后续需要完整 shadcn CLI，需要单独评估依赖和样式迁移成本。
+
+## 2026-06-08 识别纠错记忆优化
+
+- 修改目标：降低截图识别后的重复手动修正成本，让预览修正可沉淀为后续自动映射规则。
+- 修改文件：`lib/role-mapping.ts`、`app/api/admin/recognize/route.ts`、`app/api/admin/matches/route.ts`、`app/home-client.tsx`、`db_utils.py`、`pages/2_战绩管理.py`、`DEVELOPMENT_LOG.md`。
+- 修改原因：现有预览确认流程仍需反复修正同类识别错误，容易降低上传战绩意愿。
+- 验证命令：`npm run lint`、`npm run build`、`python3 -m compileall app.py pages ui_utils.py attendance_utils.py db_utils.py`、`npm run dev`、`.venv/bin/streamlit run app.py --server.headless true --server.port 8502`。
+- 验证结果：TypeScript 检查、Next production build、Python 编译通过；Next dev server 在提升权限后可启动；Streamlit 8501 已占用，改用 8502 可启动。
+- 后续风险：纠错记忆写入本地映射文件，部署在只读运行环境时需要后续改为可持久化配置源。

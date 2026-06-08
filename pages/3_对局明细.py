@@ -9,7 +9,6 @@ from ui_utils import (
 )
 
 
-st.set_page_config(page_title="对局明细", layout="centered")
 apply_base_styles()
 render_page_card(
     pill_text="每局回顾",

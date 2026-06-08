@@ -10,7 +10,6 @@ from ui_utils import (
 )
 
 
-st.set_page_config(page_title="数据大厅", layout="centered")
 apply_base_styles()
 render_page_card(
     pill_text="战绩统计",

@@ -147,6 +147,12 @@ def load_role_mapping() -> dict:
     return {}
 
 
+def save_role_mapping(mapping: dict) -> None:
+    with open(_mapping_path, "w", encoding="utf-8") as fh:
+        json.dump(mapping, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+
+
 def apply_role_mapping(records: list[dict]) -> list[dict]:
     mapping = load_role_mapping()
     faction_map = mapping.get("faction_map", {})
@@ -176,6 +182,37 @@ def apply_role_mapping(records: list[dict]) -> list[dict]:
                 break
         record["player_name"] = record["player_name"].upper()
     return records
+
+
+def learn_role_mapping_from_corrections(records: list[dict]) -> list[str]:
+    mapping = load_role_mapping()
+    faction_map = mapping.get("faction_map", {})
+    role_alias = dict(mapping.get("role_alias", {}))
+    name_rules = dict(mapping.get("name_rules", {}))
+    name_contains = dict(name_rules.get("contains", {}))
+
+    changes = []
+    for record in records:
+        raw_role = str(record.get("raw_role", "")).strip()
+        final_role = str(record.get("role", "")).strip()
+        if raw_role and final_role and raw_role != final_role and final_role in faction_map:
+            if role_alias.get(raw_role) != final_role:
+                role_alias[raw_role] = final_role
+                changes.append(f"职业别名：{raw_role} -> {final_role}")
+
+        raw_name = str(record.get("raw_player_name", "")).strip()
+        final_name = str(record.get("player_name", "")).strip()
+        if raw_name and final_name and raw_name.upper() != final_name.upper():
+            if name_contains.get(raw_name) != final_name:
+                name_contains[raw_name] = final_name
+                changes.append(f"玩家名：包含 {raw_name} -> {final_name}")
+
+    if changes:
+        mapping["role_alias"] = role_alias
+        name_rules["contains"] = name_contains
+        mapping["name_rules"] = name_rules
+        save_role_mapping(mapping)
+    return changes
 
 
 def fix_existing_records() -> list[str]:

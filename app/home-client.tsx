@@ -19,7 +19,11 @@ type HomeClientProps = {
   error: string | null;
 };
 
-type EditableRow = Pick<MatchRecord, "id" | "matchId" | "date" | "playerName" | "faction" | "role" | "isWin">;
+type EditableRow = Pick<MatchRecord, "id" | "matchId" | "date" | "playerName" | "faction" | "role" | "isWin"> & Partial<{
+  rawPlayerName: string;
+  rawFaction: string;
+  rawRole: string;
+}>;
 
 type AdminMatch = {
   matchId: string;
@@ -711,6 +715,32 @@ function AdminPanel() {
     }
   }
 
+  async function learnPreviewCorrections() {
+    if (!pendingRows.length) {
+      setError("当前没有可学习的预览数据。");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/matches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "learn-mapping", rows: pendingRows }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "记忆修正失败。");
+      }
+      setPendingRows((body.rows as EditableRow[]) ?? pendingRows);
+      setStatus(body.changed ? `已记住 ${body.changes?.length ?? 0} 条修正规则。` : "本次没有发现可复用的修正规则。");
+    } catch (learnError) {
+      setError(learnError instanceof Error ? learnError.message : "记忆修正失败。");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function saveSelectedMatch() {
     if (!selected) {
       return;
@@ -828,9 +858,14 @@ function AdminPanel() {
             <p className="kicker">识别预览</p>
             <h2>确认后落库</h2>
           </div>
-          <Button variant="primary" compact onClick={confirmIngest} disabled={ingesting || recognizing || !pendingRows.length}>
-            {ingesting ? "入库中..." : "确认入库"}
-          </Button>
+          <div className="actionGroup">
+            <Button compact onClick={learnPreviewCorrections} disabled={saving || ingesting || recognizing || !pendingRows.length}>
+              记住修正
+            </Button>
+            <Button variant="primary" compact onClick={confirmIngest} disabled={ingesting || recognizing || !pendingRows.length}>
+              {ingesting ? "入库中..." : "确认入库"}
+            </Button>
+          </div>
         </div>
         {recognitionErrors.length ? (
           <div className="compactRows">

@@ -26,6 +26,12 @@ type RecognitionRecord = {
   is_win?: unknown;
 };
 
+type PreviewRecord = EditableRecord & {
+  rawPlayerName: string;
+  rawFaction: string;
+  rawRole: string;
+};
+
 function mediaType(file: File) {
   if (file.type === "image/png" || file.name.toLowerCase().endsWith(".png")) {
     return "image/png";
@@ -45,7 +51,7 @@ function extractJson(text: string) {
   return output.trim();
 }
 
-function normalizeRecord(record: RecognitionRecord, matchId: string, matchDate: string, id: number): EditableRecord {
+function normalizeRecord(record: RecognitionRecord, matchId: string, matchDate: string, id: number): PreviewRecord {
   const playerName = String(record.player_name ?? "").trim();
   const faction = String(record.faction ?? "").trim();
   const role = String(record.role ?? "").trim();
@@ -71,6 +77,9 @@ function normalizeRecord(record: RecognitionRecord, matchId: string, matchDate: 
     faction: faction as EditableRecord["faction"],
     role,
     isWin,
+    rawPlayerName: playerName,
+    rawFaction: faction,
+    rawRole: role,
   };
 }
 

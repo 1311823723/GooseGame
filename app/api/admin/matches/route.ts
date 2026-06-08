@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { applyRoleMappingToRecords } from "@/lib/role-mapping";
+import { applyRoleMappingToRecords, learnRoleMappingFromCorrections } from "@/lib/role-mapping";
 import { EditableRecord, normalizeRecordRow, sanitizeEditableRows } from "@/lib/match-record-shared";
 import {
   blobToDataUrl,
@@ -194,10 +194,28 @@ export async function PUT(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { action?: unknown; matchId?: unknown; date?: unknown } | null;
+  const body = await request.json().catch(() => null) as { action?: unknown; matchId?: unknown; date?: unknown; rows?: unknown } | null;
   const action = parseText(body?.action);
   const matchId = parseText(body?.matchId);
   const date = parseText(body?.date);
+
+  if (action === "learn-mapping") {
+    if (!Array.isArray(body?.rows)) {
+      return NextResponse.json({ error: "没有可学习的预览修正。" }, { status: 400 });
+    }
+    const learning = learnRoleMappingFromCorrections(body.rows as Array<EditableRecord & {
+      rawPlayerName?: string;
+      rawFaction?: string;
+      rawRole?: string;
+    }>);
+    const sanitizedRows = sanitizeEditableRows(body.rows);
+    const mappedRows = sanitizedRows ? applyRoleMappingToRecords(sanitizedRows) : [];
+    return NextResponse.json({
+      changed: learning.changed,
+      changes: learning.changes,
+      rows: mappedRows,
+    });
+  }
 
   if (action !== "apply-mapping") {
     return NextResponse.json({ error: "未知操作。" }, { status: 400 });

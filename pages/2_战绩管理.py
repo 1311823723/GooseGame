@@ -16,11 +16,17 @@ except ImportError as exc:
     openai_import_error = str(exc)
 
 from db_utils import (
-    delete_match_records, fetch_match_image, fetch_match_records,
+    apply_role_mapping, delete_match_records, fetch_match_image, fetch_match_records,
     fix_existing_records, insert_match_images, insert_match_records,
-    update_match_record,
+    learn_role_mapping_from_corrections, update_match_record,
 )
-from ui_utils import apply_base_styles, render_page_card, render_section_title, render_status_card
+from ui_utils import (
+    apply_base_styles,
+    render_empty_state,
+    render_page_card,
+    render_section_title,
+    render_status_card,
+)
 
 DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
@@ -40,7 +46,10 @@ allowed_factions = ["鹅", "鸭", "中立"]
 
 
 def get_api_key() -> str:
-    return str(st.secrets.get("DASHSCOPE_API_KEY", os.getenv("DASHSCOPE_API_KEY", ""))).strip()
+    try:
+        return str(st.secrets.get("DASHSCOPE_API_KEY", os.getenv("DASHSCOPE_API_KEY", ""))).strip()
+    except Exception:
+        return os.getenv("DASHSCOPE_API_KEY", "").strip()
 
 
 dashscope_api_key = get_api_key()
@@ -48,7 +57,6 @@ dashscope_client = None
 if dashscope_api_key and OpenAI is not None:
     dashscope_client = OpenAI(api_key=dashscope_api_key, base_url=DASHSCOPE_BASE_URL)
 
-st.set_page_config(page_title="战绩管理", layout="centered")
 apply_base_styles()
 render_page_card(
     pill_text="内部页面 · 战绩入库",
@@ -71,10 +79,15 @@ with st.expander("识别前准备", expanded=False):
 if OpenAI is None:
     st.warning(f"当前未安装 openai，截图识别暂时不可用：{openai_import_error}")
 
+pending_columns = [
+    "match_id", "date", "player_name", "faction", "role", "is_win",
+    "raw_player_name", "raw_faction", "raw_role",
+]
+visible_pending_columns = ["match_id", "date", "player_name", "faction", "role", "is_win"]
+raw_pending_columns = ["raw_player_name", "raw_faction", "raw_role"]
+
 if "pending_match_records" not in st.session_state:
-    st.session_state["pending_match_records"] = pd.DataFrame(
-        columns=["match_id", "date", "player_name", "faction", "role", "is_win"]
-    )
+    st.session_state["pending_match_records"] = pd.DataFrame(columns=pending_columns)
 if "recognition_errors" not in st.session_state:
     st.session_state["recognition_errors"] = []
 if "match_images" not in st.session_state:
@@ -105,6 +118,9 @@ def normalize_record(record: dict, match_id: str, match_date: str) -> dict:
         "faction": faction,
         "role": role,
         "is_win": is_win,
+        "raw_player_name": player_name,
+        "raw_faction": faction,
+        "raw_role": role,
     }
 
 
@@ -213,12 +229,10 @@ if st.button("开始识别", type="primary", use_container_width=True):
 
         st.session_state["recognition_errors"] = recognition_errors
         if recognized_rows:
-            st.session_state["pending_match_records"] = pd.DataFrame(recognized_rows)
+            st.session_state["pending_match_records"] = pd.DataFrame(apply_role_mapping(recognized_rows))
             st.success(f"识别完成，共得到 {len(recognized_rows)} 条玩家记录。")
         else:
-            st.session_state["pending_match_records"] = pd.DataFrame(
-                columns=["match_id", "date", "player_name", "faction", "role", "is_win"]
-            )
+            st.session_state["pending_match_records"] = pd.DataFrame(columns=pending_columns)
             st.warning("没有成功识别出可入库的数据。")
 
 pending_match_records = st.session_state["pending_match_records"]
@@ -239,6 +253,7 @@ edited_match_records = st.data_editor(
     pending_match_records,
     use_container_width=True,
     num_rows="dynamic",
+    column_order=visible_pending_columns,
     column_config={
         "match_id": st.column_config.TextColumn("对局ID"),
         "date": st.column_config.TextColumn("日期"),
@@ -249,8 +264,33 @@ edited_match_records = st.data_editor(
     },
     hide_index=True,
 )
+for source_column in raw_pending_columns:
+    if source_column not in edited_match_records.columns:
+        source_values = pending_match_records[source_column].tolist() if source_column in pending_match_records.columns else []
+        edited_match_records[source_column] = [
+            source_values[index] if index < len(source_values) else ""
+            for index in range(len(edited_match_records))
+        ]
 
-if st.button("存入数据库", use_container_width=True):
+col_learn, col_ingest = st.columns(2)
+with col_learn:
+    if st.button("记住本次修正", use_container_width=True):
+        if edited_match_records.empty:
+            st.error("当前没有可学习的预览数据。")
+        else:
+            changes = learn_role_mapping_from_corrections(edited_match_records.to_dict(orient="records"))
+            if changes:
+                remapped = apply_role_mapping(edited_match_records.to_dict(orient="records"))
+                st.session_state["pending_match_records"] = pd.DataFrame(remapped)
+                st.success(f"已记住 {len(changes)} 条修正规则，后续识别会自动修正同类问题。")
+                st.rerun()
+            else:
+                st.info("本次没有发现可复用的修正规则。")
+
+with col_ingest:
+    save_clicked = st.button("存入数据库", use_container_width=True, type="primary")
+
+if save_clicked:
     if edited_match_records.empty:
         st.error("当前没有可存储的数据。")
     else:
@@ -290,9 +330,7 @@ if st.button("存入数据库", use_container_width=True):
                 if img_saved:
                     msg += f"，保存 {img_saved} 张截图"
                 st.success(msg + "。")
-                st.session_state["pending_match_records"] = pd.DataFrame(
-                    columns=["match_id", "date", "player_name", "faction", "role", "is_win"]
-                )
+                st.session_state["pending_match_records"] = pd.DataFrame(columns=pending_columns)
                 st.session_state["recognition_errors"] = []
                 st.session_state["match_images"] = {}
                 st.rerun()
@@ -306,7 +344,7 @@ stored_records, load_error = fetch_match_records()
 if load_error:
     st.error(f"读取数据库失败：{load_error}")
 elif stored_records.empty:
-    st.info("数据库里还没有战绩记录。")
+    render_empty_state("数据库里还没有战绩记录", "上传结算截图并保存后，这里会出现可编辑的历史战绩。", "📁")
 else:
     st.markdown(
         f'<p class="gg-section-title">已存战绩 <span class="gg-pill">{len(stored_records)} 条</span></p>',
